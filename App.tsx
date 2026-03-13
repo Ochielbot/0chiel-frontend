@@ -38,17 +38,7 @@ import { AdminLogin } from './AdminLogin';
 
 // ─── API Service ──────────────────────────────────────────────────────────
 
-const getOrigin = () => {
-    if (Platform.OS === 'web') {
-        const w = global as any;
-        if (w.window?.location?.origin) {
-            return w.window.location.origin;
-        }
-    }
-    return null;
-};
-
-const API_BASE = process.env.REACT_APP_API_BASE || getOrigin() || 'http://localhost:3001/api';
+const API_BASE = process.env.REACT_APP_API_URL || 'https://0chiel-backend-production.up.railway.app/api';
 
 // Get auth headers
 const getAuthHeaders = (): Record<string, string> => {
