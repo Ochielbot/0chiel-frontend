@@ -1,79 +1,227 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Ochiel - Thought Space
 
-# Getting Started
+A dynamic, interactive thought space for exploring ideas, media, and connections with **dual-access architecture**: admin-only private space and public void contributions.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+## 🎯 Concept
 
-## Step 1: Start the Metro Server
+**Admin Experience**: Full access to mind, matter, and confluence spaces with complete control over content.
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+**Public Experience**: Anonymous users can contribute thoughts that automatically go to the "void" space - a collective consciousness where public ideas live.
 
-To start Metro, run the following command from the _root_ of your React Native project:
+## Modern 2026 Architecture
 
-```bash
-# using npm
-npm start
-
-# OR using Yarn
-yarn start
+```
+ochiel/
+├── frontend/                 # React Native Web app
+│   ├── src/
+│   ├── public/
+│   ├── webpack.config.js
+│   └── package.json
+├── backend/                  # Node.js API server
+│   ├── src/
+│   │   ├── routes/          # API endpoints (auth, thoughts, etc.)
+│   │   ├── services/        # Business logic
+│   │   ├── database/        # Database setup
+│   │   └── scripts/         # Utilities
+│   ├── data/               # SQLite database
+│   └── package.json
+├── Dockerfile              # Docker container
+├── docker-compose.yml      # Docker orchestration
+└── README.md
 ```
 
-## Step 2: Start your Application
+## Features
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
+### 🔐 **Dual-Access System**
+- **Public Access**: Can view ALL content (admin + void spaces) but contributions go to void
+- **Admin Access**: Full control over all spaces, can view/edit everything
+- **Automatic Routing**: Public users' content automatically goes to void space
+- **Media Restrictions**: Public users cannot upload images/videos (admin only)
+- **Content Moderation**: Comprehensive profanity filter and spam detection
 
-### For Android
+### 🎨 **Dynamic Node System**
+- **6 Node Categories**: Fragment, Essay, Note, Media, Collage, Project
+- **Pin & Resize**: Nodes can be pinned and resized with database persistence
+- **Multi-Space Navigation**: Mind, Matter, Confluence, and Void spaces
+- **Real-time Updates**: Changes persist across sessions
+
+### 🎵 **Rich Integrations**
+- **Spotify Integration**: Shows currently playing from @0chiel
+- **Google Books Integration**: Embed books you're reading
+- **Media Support**: YouTube, TikTok, Spotify embeds
+- **Collage Nodes**: Combine videos and images in resizable containers
+
+### 🏗️ **Production Ready**
+- **Docker Support**: Full containerization with docker-compose
+- **Modern Backend**: Node.js with Express, SQLite, security middleware
+- **Responsive Design**: Works on web and mobile
+- **Health Monitoring**: Built-in health checks and monitoring
+
+## Quick Setup
+
+### 🐳 Docker (Recommended)
 
 ```bash
-# using npm
-npm run android
+# Clone and setup
+git clone <your-repo>
+cd ochiel
 
-# OR using Yarn
-yarn android
+# Start with Docker
+docker-compose up --build
+
+# Access at http://localhost:3001
+# Default admin: admin / admin123
 ```
 
-### For iOS
+### 📦 Manual Setup
 
 ```bash
-# using npm
-npm run ios
+# Install everything and set up database
+npm run setup
 
-# OR using Yarn
-yarn ios
+# Start both frontend and backend
+npm run dev
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+## Manual Setup
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+### 1. Frontend Setup
+```bash
+npm install
+```
 
-## Step 3: Modifying your App
+### 2. Backend Setup
+```bash
+npm run backend:install
+```
 
-Now that you have successfully run the app, let's modify it.
+### 3. Environment Configuration
+```bash
+cd backend
+cp .env.example .env
+# Edit .env with your API keys
+```
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+### 4. Database Setup
+```bash
+npm run backend:init    # Create tables
+npm run backend:seed    # Add sample data
+```
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+### 5. Start Development
+```bash
+npm run dev            # Both frontend and backend
+# OR separately:
+npm run backend:dev    # Backend only (port 3001)
+npm run start:web      # Frontend only (port 8080)
+```
 
-## Congratulations! :tada:
+## API Endpoints
 
-You've successfully run and modified your React Native App. :partying_face:
+### Thoughts/Nodes
+- `GET /api/thoughts` - Get all thoughts
+- `POST /api/thoughts` - Create new thought
+- `PUT /api/thoughts/:id` - Update thought
+- `DELETE /api/thoughts/:id` - Delete thought
 
-### Now what?
+### Currently Playing/Reading
+- `GET /api/currently` - Get active items
+- `POST /api/currently` - Update currently data
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+### Spotify Integration
+- `GET /api/spotify/status` - Check Spotify connection
+- `GET /api/spotify/currently-playing` - Get current track
+- `POST /api/spotify/sync` - Manual sync
+- `GET /api/spotify/search?q=query` - Search tracks
 
-# Troubleshooting
+### Settings
+- `GET /api/settings` - Get all settings
+- `GET /api/settings/:key` - Get specific setting
+- `POST /api/settings/:key` - Update setting
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## Environment Variables
 
-# Learn More
+Create `backend/.env`:
 
-To learn more about React Native, take a look at the following resources:
+```env
+# Server
+NODE_ENV=development
+PORT=3001
+CORS_ORIGIN=http://localhost:8080
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+# Database
+DATABASE_URL=./data/ochiel.db
+
+# Spotify API (get from https://developer.spotify.com/)
+SPOTIFY_CLIENT_ID=your_client_id
+SPOTIFY_CLIENT_SECRET=your_client_secret
+SPOTIFY_USERNAME=0chiel
+
+# Google Books API (get from Google Cloud Console)
+GOOGLE_BOOKS_API_KEY=your_api_key
+
+# Security
+JWT_SECRET=your_random_secret
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+```
+
+## Node Types
+
+- **Fragment**: Basic thought fragments
+- **Essay**: Longer form writing  
+- **Marginal**: Quick notes and annotations
+- **Media**: Spotify, YouTube, and other embeds
+- **Collage**: Combined video and image content
+- **Artifact**: Project showcases
+- **Riddle**: Interactive puzzles
+
+## Spaces
+
+- **Mind**: Ideas and thoughts (dark theme)
+- **Matter**: Physical projects and making (light theme)  
+- **Confluence**: Overview of all spaces (dark with yellow accents)
+- **Void**: Hidden/private content
+
+## Development
+
+### Tech Stack
+- **Frontend**: React Native Web, TypeScript, Reanimated
+- **Backend**: Node.js, Express, SQLite
+- **APIs**: Spotify Web API, Google Books API
+- **Architecture**: Modern ES modules, proper separation of concerns
+
+### Database Schema
+- **thoughts**: All nodes/thoughts with metadata
+- **currently**: Music, books, learning progress
+- **settings**: User preferences and configuration
+
+### Security Features
+- Helmet.js for security headers
+- Rate limiting
+- CORS configuration
+- Input validation
+- SQL injection prevention
+
+### Performance
+- Database indexing
+- Compression middleware
+- Efficient queries
+- Proper error handling
+
+## Production Deployment
+
+1. **Build frontend**: `npm run build:web`
+2. **Set environment**: `NODE_ENV=production`
+3. **Use process manager**: PM2 or similar
+4. **Database**: Consider PostgreSQL for production
+5. **Reverse proxy**: Nginx recommended
+6. **SSL**: Let's Encrypt or similar
+
+## Color Scheme
+
+- **Accent Color**: Soft yellow (`#f4e4a6`)
+- **Mind Space**: Black background, white text
+- **Matter Space**: Off-white background, dark text
+- **Confluence**: Dark background with yellow accents  
+- **Void**: Very dark, mysterious theme

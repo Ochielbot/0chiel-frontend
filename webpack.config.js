@@ -1,5 +1,7 @@
 const path = require('path');
+const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const appDirectory = path.resolve(__dirname, './');
 
@@ -39,14 +41,39 @@ module.exports = {
         ],
     },
     plugins: [
+        new webpack.DefinePlugin({
+            __DEV__: JSON.stringify(true),
+            'process.env.NODE_ENV': JSON.stringify('development'),
+            'process.env': JSON.stringify({}),
+            'process.version': JSON.stringify(''),
+            'process.platform': JSON.stringify('web'),
+        }),
         new HtmlWebpackPlugin({
             template: path.join(appDirectory, 'public/index.html'),
         }),
+        new CopyWebpackPlugin({
+            patterns: [
+                {
+                    from: path.join(appDirectory, 'public'),
+                    to: path.resolve(appDirectory, 'dist'),
+                    filter: (resourcePath) => {
+                        // Don't copy index.html as it's handled by HtmlWebpackPlugin
+                        return !resourcePath.endsWith('index.html');
+                    },
+                },
+            ],
+        }),
     ],
     devServer: {
-        static: {
-            directory: path.join(appDirectory, 'dist'),
-        },
+        static: [
+            {
+                directory: path.join(appDirectory, 'dist'),
+            },
+            {
+                directory: path.join(appDirectory, 'public'),
+                publicPath: '/',
+            },
+        ],
         port: 8080,
         hot: true,
     },

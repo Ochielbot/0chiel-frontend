@@ -1,0 +1,351 @@
+const express = require('express');
+const cors = require('cors');
+const sqlite3 = require('sqlite3').verbose();
+const cron = require('node-cron');
+const axios = require('axios');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Database setup
+const db = new sqlite3.Database('./ochiel.db');
+
+// Initialize database tables
+db.serialize(() => {
+    // Thoughts/nodes table
+    db.run(`CREATE TABLE IF NOT EXISTS thoughts (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        label TEXT NOT NULL,
+        body TEXT,
+        space TEXT NOT NULL,
+        pinned BOOLEAN DEFAULT 0,
+        initialX INTEGER DEFAULT 0,
+        initialY INTEGER DEFAULT 0,
+        media_type TEXT,
+        media_url TEXT,
+        media_embed_id TEXT,
+        media_title TEXT,
+        images TEXT, -- JSON array of image URLs
+        custom_width INTEGER,
+        custom_height INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // Currently playing/reading/learning table
+    db.run(`CREATE TABLE IF NOT EXISTS currently (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL, -- 'music', 'book', 'learning'
+        title TEXT NOT NULL,
+        artist_author TEXT,
+        spotify_id TEXT,
+        google_books_id TEXT,
+        progress TEXT,
+        status TEXT DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    // User settings
+    db.run(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+});
+
+// Spotify integration
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
+const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
+const SPOTIFY_USERNAME = '0chiel';
+
+let spotifyToken = null;
+
+// Get Spotify access token
+async function getSpotifyToken() {
+    try {
+        const response = await axios.post('https://accounts.spotify.com/api/token', 
+            'grant_type=client_credentials',
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Basic ${Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString('base64')}`
+                }
+            }
+        );
+        spotifyToken = response.data.access_token;
+        return spotifyToken;
+    } catch (error) {
+        console.error('Error getting Spotify token:', error);
+        return null;
+    }
+}
+
+// Get currently playing from Spotify
+async function getCurrentlyPlaying() {
+    if (!spotifyToken) {
+        await getSpotifyToken();
+    }
+    
+    try {
+        // Note: This requires user authentication for currently playing
+        // For now, we'll use a placeholder or last played track
+        const response = await axios.get(`https://api.spotify.com/v1/users/${SPOTIFY_USERNAME}/playlists`, {
+            headers: {
+                'Authorization': `Bearer ${spotifyToken}`
+            }
+        });
+        
+        // For demo, return a placeholder
+        return {
+            title: "Fast Car",
+            artist: "Tracy Chapman",
+            spotify_id: "0V3wPSX9ygBnCm8psDIegu"
+        };
+    } catch (error) {
+        console.error('Error getting currently playing:', error);
+        return null;
+    }
+}
+
+// API Routes
+
+// Get all thoughts
+app.get('/api/thoughts', (req, res) => {
+    const { space } = req.query;
+    let query = 'SELECT * FROM thoughts';
+    let params = [];
+    
+    if (space) {
+        query += ' WHERE space = ?';
+        params.push(space);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    db.all(query, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        
+        // Parse JSON fields
+        const thoughts = rows.map(row => ({
+            ...row,
+            images: row.images ? JSON.parse(row.images) : [],
+            pinned: Boolean(row.pinned),
+            media: row.media_type ? {
+                type: row.media_type,
+                url: row.media_url,
+                embedId: row.media_embed_id,
+                title: row.media_title
+            } : null,
+            customSize: row.custom_width && row.custom_height ? {
+                width: row.custom_width,
+                height: row.custom_height
+            } : null
+        }));
+        
+        res.json(thoughts);
+    });
+});
+
+// Create new thought
+app.post('/api/thoughts', (req, res) => {
+    const {
+        id, kind, label, body, space, initialX, initialY,
+        media, images, customSize
+    } = req.body;
+    
+    const stmt = db.prepare(`
+        INSERT INTO thoughts (
+            id, kind, label, body, space, initialX, initialY,
+            media_type, media_url, media_embed_id, media_title,
+            images, custom_width, custom_height
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run([
+        id, kind, label, body, space, initialX, initialY,
+        media?.type, media?.url, media?.embedId, media?.title,
+        images ? JSON.stringify(images) : null,
+        customSize?.width, customSize?.height
+    ], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ id: this.lastID, message: 'Thought created successfully' });
+    });
+    
+    stmt.finalize();
+});
+
+// Update thought
+app.put('/api/thoughts/:id', (req, res) => {
+    const { id } = req.params;
+    const updates = req.body;
+    
+    // Build dynamic update query
+    const fields = [];
+    const values = [];
+    
+    Object.keys(updates).forEach(key => {
+        if (key === 'media') {
+            fields.push('media_type = ?', 'media_url = ?', 'media_embed_id = ?', 'media_title = ?');
+            values.push(updates.media?.type, updates.media?.url, updates.media?.embedId, updates.media?.title);
+        } else if (key === 'images') {
+            fields.push('images = ?');
+            values.push(JSON.stringify(updates.images));
+        } else if (key === 'customSize') {
+            fields.push('custom_width = ?', 'custom_height = ?');
+            values.push(updates.customSize?.width, updates.customSize?.height);
+        } else {
+            fields.push(`${key} = ?`);
+            values.push(updates[key]);
+        }
+    });
+    
+    fields.push('updated_at = CURRENT_TIMESTAMP');
+    values.push(id);
+    
+    const query = `UPDATE thoughts SET ${fields.join(', ')} WHERE id = ?`;
+    
+    db.run(query, values, function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ message: 'Thought updated successfully', changes: this.changes });
+    });
+});
+
+// Delete thought
+app.delete('/api/thoughts/:id', (req, res) => {
+    const { id } = req.params;
+    
+    db.run('DELETE FROM thoughts WHERE id = ?', [id], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ message: 'Thought deleted successfully', changes: this.changes });
+    });
+});
+
+// Get currently data
+app.get('/api/currently', (req, res) => {
+    db.all('SELECT * FROM currently WHERE status = "active" ORDER BY updated_at DESC', (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json(rows);
+    });
+});
+
+// Update currently data
+app.post('/api/currently', (req, res) => {
+    const { type, title, artist_author, spotify_id, google_books_id, progress } = req.body;
+    
+    // First, deactivate existing entries of this type
+    db.run('UPDATE currently SET status = "inactive" WHERE type = ?', [type], (err) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        
+        // Insert new entry
+        const stmt = db.prepare(`
+            INSERT INTO currently (type, title, artist_author, spotify_id, google_books_id, progress)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        
+        stmt.run([type, title, artist_author, spotify_id, google_books_id, progress], function(err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            res.json({ id: this.lastID, message: 'Currently data updated successfully' });
+        });
+        
+        stmt.finalize();
+    });
+});
+
+// Sync with Spotify (run periodically)
+app.post('/api/sync/spotify', async (req, res) => {
+    try {
+        const currentlyPlaying = await getCurrentlyPlaying();
+        if (currentlyPlaying) {
+            // Update currently table
+            db.run('UPDATE currently SET status = "inactive" WHERE type = "music"');
+            
+            const stmt = db.prepare(`
+                INSERT INTO currently (type, title, artist_author, spotify_id)
+                VALUES ("music", ?, ?, ?)
+            `);
+            
+            stmt.run([currentlyPlaying.title, currentlyPlaying.artist, currentlyPlaying.spotify_id]);
+            stmt.finalize();
+        }
+        
+        res.json({ message: 'Spotify sync completed', data: currentlyPlaying });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Settings endpoints
+app.get('/api/settings/:key', (req, res) => {
+    const { key } = req.params;
+    
+    db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ key, value: row ? row.value : null });
+    });
+});
+
+app.post('/api/settings/:key', (req, res) => {
+    const { key } = req.params;
+    const { value } = req.body;
+    
+    db.run(`
+        INSERT OR REPLACE INTO settings (key, value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+    `, [key, value], function(err) {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json({ message: 'Setting updated successfully' });
+    });
+});
+
+// Periodic Spotify sync (every 5 minutes)
+cron.schedule('*/5 * * * *', async () => {
+    console.log('Running Spotify sync...');
+    try {
+        await getCurrentlyPlaying();
+    } catch (error) {
+        console.error('Spotify sync error:', error);
+    }
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log('Database initialized');
+    
+    // Initialize Spotify token
+    getSpotifyToken();
+});
