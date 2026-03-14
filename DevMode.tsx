@@ -103,7 +103,7 @@ const chipStyle = useAnimatedStyle(() => ({
     },
     {
         id: 'media',
-        title: '🎵 rich media embeds',
+        title: 'rich media embeds',
         sub: 'Spotify + YouTube + TikTok',
         body: 'Paste media URLs below to see live embed previews. The system extracts embed IDs and renders native iframes just like in the real capture panel.',
         code: `const extractEmbedId = (url: string) => {

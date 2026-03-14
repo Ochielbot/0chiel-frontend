@@ -15,11 +15,11 @@ interface AdminLoginProps {
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, currentSpace }) => {
     const [username, setUsername] = useState('admin');
-    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [usePasskey, setUsePasskey] = useState(false);
     const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+
+    const API_BASE = process.env.REACT_APP_API_URL || 'https://0chiel-backend-production.up.railway.app/api';
 
     const bg = currentSpace === 'matter' ? '#fff' : '#0a0a0a';
     const fg = currentSpace === 'matter' ? '#111' : '#f0f0f0';
@@ -30,15 +30,15 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
     React.useEffect(() => {
         if (typeof window !== 'undefined' && typeof (window as any).PublicKeyCredential !== 'undefined') {
             setPasskeyAvailable(true);
-            // Auto-switch to passkey if available
-            setUsePasskey(true);
+        } else {
+            setError('Passkey authentication not supported in this browser');
         }
     }, []);
 
     const registerPasskey = async (username: string) => {
         try {
             // Begin registration
-            const beginResponse = await fetch('http://localhost:3001/api/passkey/register/begin', {
+            const beginResponse = await fetch(`${API_BASE}/passkey/register/begin`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username })
@@ -74,7 +74,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
             }
 
             // Complete registration
-            const completeResponse = await fetch('http://localhost:3001/api/passkey/register/complete', {
+            const completeResponse = await fetch(`${API_BASE}/passkey/register/complete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -102,7 +102,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
 
         try {
             // Begin authentication
-            const beginResponse = await fetch('http://localhost:3001/api/passkey/authenticate/begin', {
+            const beginResponse = await fetch(`${API_BASE}/passkey/authenticate/begin`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username })
@@ -110,8 +110,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
 
             if (!beginResponse.ok) {
                 const data = await beginResponse.json();
-                setError(data.error || 'Passkey not set up. Use password to login.');
-                setUsePasskey(false);
+                setError(data.error || 'Passkey not set up. Please contact admin to set up passkey authentication.');
                 setLoading(false);
                 return;
             }
@@ -140,7 +139,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
             }
 
             // Complete authentication
-            const completeResponse = await fetch('http://localhost:3001/api/passkey/authenticate/complete', {
+            const completeResponse = await fetch(`${API_BASE}/passkey/authenticate/complete`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -163,79 +162,24 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
             }
         } catch (error) {
             console.error('Passkey error:', error);
-            setError('Passkey authentication failed. Try password instead.');
-            setUsePasskey(false);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handlePasswordLogin = async () => {
-        if (!username || !password) {
-            setError('Username and password required');
-            return;
-        }
-
-        setLoading(true);
-        setError('');
-
-        try {
-            const response = await fetch('http://localhost:3001/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                localStorage.setItem('ochiel_session', data.sessionId);
-                
-                // Offer to set up passkey if available and not already set up
-                if (passkeyAvailable && !usePasskey) {
-                    const setupPasskey = typeof window !== 'undefined' && (window as any).confirm('Set up passkey/fingerprint for faster login next time?');
-                    if (setupPasskey) {
-                        await registerPasskey(username);
-                    }
-                }
-                
-                onLogin(data.sessionId);
-            } else {
-                setError(data.error || 'Login failed');
-            }
-        } catch (error) {
-            setError('Network error');
+            setError('Passkey authentication failed. Please try again or contact admin.');
         } finally {
             setLoading(false);
         }
     };
 
     const handleLogin = () => {
-        if (usePasskey && passkeyAvailable) {
-            handlePasskeyLogin();
-        } else {
-            handlePasswordLogin();
+        if (!passkeyAvailable) {
+            setError('Passkey authentication not supported');
+            return;
         }
+        handlePasskeyLogin();
     };
 
     return (
         <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.8)' }]}>
             <View style={[styles.modal, { backgroundColor: bg, borderColor: border }]}>
                 <Text style={[styles.title, { color: fg }]}>admin login</Text>
-                
-                {passkeyAvailable && (
-                    <TouchableOpacity 
-                        style={[styles.toggleButton, { borderColor: border }]}
-                        onPress={() => setUsePasskey(!usePasskey)}
-                    >
-                        <Text style={[styles.toggleText, { color: fg }]}>
-                            {usePasskey ? 'using passkey/fingerprint' : 'using password'}
-                        </Text>
-                        <Text style={[styles.toggleHint, { color: placeholder }]}>
-                            tap to switch
-                        </Text>
-                    </TouchableOpacity>
-                )}
                 
                 <TextInput
                     style={[styles.input, { color: fg, borderColor: border }]}
@@ -245,17 +189,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
                     onChangeText={setUsername}
                     autoCapitalize="none"
                 />
-                
-                {!usePasskey && (
-                    <TextInput
-                        style={[styles.input, { color: fg, borderColor: border }]}
-                        placeholder="password"
-                        placeholderTextColor={placeholder}
-                        value={password}
-                        onChangeText={setPassword}
-                        secureTextEntry
-                    />
-                )}
                 
                 {error ? (
                     <Text style={[styles.error, { color: '#ff6b6b' }]}>{error}</Text>
@@ -275,26 +208,25 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
                             styles.loginButton, 
                             { 
                                 borderColor: '#f4e4a6',
-                                backgroundColor: loading ? 'transparent' : '#f4e4a6'
+                                backgroundColor: loading ? 'transparent' : '#f4e4a6',
+                                opacity: passkeyAvailable ? 1 : 0.5
                             }
                         ]}
                         onPress={handleLogin}
-                        disabled={loading}
+                        disabled={loading || !passkeyAvailable}
                     >
                         <Text style={[
                             styles.buttonText, 
                             { color: loading ? fg : '#000' }
                         ]}>
-                            {loading ? 'authenticating...' : usePasskey ? 'authenticate →' : 'login →'}
+                            {loading ? 'authenticating...' : 'authenticate with passkey →'}
                         </Text>
                     </TouchableOpacity>
                 </View>
                 
-                {!usePasskey && (
-                    <Text style={[styles.hint, { color: placeholder }]}>
-                        default: admin / admin123
-                    </Text>
-                )}
+                <Text style={[styles.hint, { color: placeholder }]}>
+                    {passkeyAvailable ? 'Use fingerprint, face ID, or security key' : 'Passkey not supported in this browser'}
+                </Text>
             </View>
         </View>
     );
@@ -323,23 +255,6 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
         marginBottom: 20,
         textAlign: 'center',
-    },
-    toggleButton: {
-        borderWidth: 1,
-        borderRadius: 4,
-        padding: 12,
-        marginBottom: 16,
-        alignItems: 'center',
-    },
-    toggleText: {
-        fontFamily: 'Space Grotesk',
-        fontSize: 13,
-        marginBottom: 4,
-    },
-    toggleHint: {
-        fontFamily: 'Space Grotesk',
-        fontSize: 10,
-        fontStyle: 'italic',
     },
     input: {
         fontFamily: 'Space Grotesk',
