@@ -154,7 +154,7 @@ type NodeKind = 'fragment' | 'essay' | 'marginal' | 'pinned' | 'media' | 'artifa
 
 type MediaType = 'spotify' | 'youtube' | 'wikipedia' | 'iframe' | 'image' | 'voice' | 'text' | 'tiktok' | 'video';
 
-type WidgetType = 'album-ranker' | 'book-tracker';
+type WidgetType = 'album-ranker' | 'book-tracker' | 'movie-tracker';
 
 interface AlbumRanking {
     tier: 'S' | 'A' | 'B' | 'C' | 'D';
@@ -181,12 +181,25 @@ interface BookProgress {
     completedAt?: string;
 }
 
+interface MovieProgress {
+    imdbId: string;
+    title: string;
+    year: string;
+    poster: string;
+    status: 'watched' | 'watchlist';
+    rating?: number;
+    review?: string;
+    watchedAt?: string;
+}
+
 interface WidgetData {
     type: WidgetType;
     // Album ranker data
     rankings?: AlbumRanking[];
     // Book tracker data
     books?: BookProgress[];
+    // Movie tracker data
+    movies?: MovieProgress[];
     lastUpdated?: string;
 }
 
@@ -1051,9 +1064,10 @@ const FloatingNode = ({
     const isRiddle = thought.kind === 'riddle';
     const isHub = thought.kind === 'hub';
     const isArtifact = thought.kind === 'artifact';
+    const isWidget = thought.kind === 'widget';
 
     const handlePress = () => {
-        if (isEssay || isMedia || isDemo || isRiddle || isHub || isArtifact || isCollage) {
+        if (isEssay || isMedia || isDemo || isRiddle || isHub || isArtifact || isCollage || isWidget) {
             onExpand(thought);
         }
     };
@@ -1114,14 +1128,15 @@ const FloatingNode = ({
     };
 
     const kindBadge = isHub ? '⊕ for you'
-        : isArtifact ? '◈ project'
-            : isEssay ? '— essay'
-                : isMarginal ? '↳ note'
-                    : isMedia ? '◉ media'
-                        : isCollage ? '▦ collage'
-                            : isDemo ? '◈ demo'
-                                : isRiddle ? '? riddle'
-                                    : '·';
+        : isWidget ? '◫ widget'
+            : isArtifact ? '◈ project'
+                : isEssay ? '— essay'
+                    : isMarginal ? '↳ note'
+                        : isMedia ? '◉ media'
+                            : isCollage ? '▦ collage'
+                                : isDemo ? '◈ demo'
+                                    : isRiddle ? '? riddle'
+                                        : '·';
 
     const handleResizeStart = () => {
         setIsResizing(true);
@@ -1967,6 +1982,180 @@ const WidgetEditor = ({
         );
     }
 
+    if (widgetData.type === 'movie-tracker') {
+        const movies = widgetData.movies || [];
+
+        const handleSearch = async () => {
+            if (!searchQuery.trim()) return;
+            setIsSearching(true);
+            try {
+                const response = await fetch(
+                    `https://0chiel-backend-production.up.railway.app/api/widgets/movie/search?q=${encodeURIComponent(searchQuery)}`
+                );
+                const data = await response.json();
+                setSearchResults(data.results || []);
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+            setIsSearching(false);
+        };
+
+        const handleAddMovie = (movie: any, status: string) => {
+            const newMovie = {
+                title: movie.title,
+                year: movie.year,
+                poster: movie.poster,
+                imdbId: movie.imdbId,
+                status,
+                rating: null,
+                review: ''
+            };
+            
+            onUpdate({ ...widgetData, movies: [...movies, newMovie] });
+            setSearchResults([]);
+            setSearchQuery('');
+        };
+
+        const handleRemoveMovie = (index: number) => {
+            onUpdate({ ...widgetData, movies: movies.filter((_: any, i: number) => i !== index) });
+        };
+
+        const handleUpdateMovie = (index: number, updates: any) => {
+            const newMovies = movies.map((movie: any, i: number) => 
+                i === index ? { ...movie, ...updates } : movie
+            );
+            onUpdate({ ...widgetData, movies: newMovies });
+        };
+
+        return (
+            <View>
+                <Text style={[styles.essayKind, { color: fgMuted }]}>editing movie tracker</Text>
+                <View style={[styles.essayRule, { backgroundColor: border }]} />
+                
+                {/* Search */}
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.widgetEditorLabel, { color: fg }]}>search movies</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                            style={[styles.widgetEditorInput, { color: fg, borderColor: border, flex: 1 }]}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="movie title..."
+                            placeholderTextColor={fgMuted}
+                            onSubmitEditing={handleSearch}
+                        />
+                        <TouchableOpacity 
+                            onPress={handleSearch}
+                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR }]}
+                            disabled={isSearching}
+                        >
+                            <Text style={[styles.widgetEditorButtonText, { color: ACCENT_COLOR }]}>
+                                {isSearching ? '...' : 'search'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Search Results */}
+                {searchResults.length > 0 && (
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={[styles.widgetEditorLabel, { color: fg }]}>add to list</Text>
+                        <ScrollView style={{ maxHeight: 200 }}>
+                            {searchResults.map((movie, i) => (
+                                <View key={i} style={[styles.widgetSearchResult, { borderColor: border }]}>
+                                    {Platform.OS === 'web' && movie.poster && movie.poster !== 'N/A' && (
+                                        React.createElement('img', {
+                                            src: movie.poster,
+                                            style: { width: 40, height: 60, borderRadius: 3, marginRight: 12, objectFit: 'cover' }
+                                        })
+                                    )}
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.widgetSearchTitle, { color: fg }]}>{movie.title}</Text>
+                                        <Text style={[styles.widgetSearchArtist, { color: fgMuted }]}>{movie.year}</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 4 }}>
+                                        <TouchableOpacity
+                                            onPress={() => handleAddMovie(movie, 'watched')}
+                                            style={[styles.widgetStatusButton, { borderColor: border }]}
+                                        >
+                                            <Text style={[styles.widgetStatusButtonText, { color: fg }]}>watched</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => handleAddMovie(movie, 'watchlist')}
+                                            style={[styles.widgetStatusButton, { borderColor: border }]}
+                                        >
+                                            <Text style={[styles.widgetStatusButtonText, { color: fg }]}>watchlist</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
+
+                {/* Current Movies */}
+                <Text style={[styles.widgetEditorLabel, { color: fg }]}>your movies</Text>
+                {movies.length === 0 ? (
+                    <Text style={[styles.widgetEmptyText, { color: fgMuted }]}>no movies yet</Text>
+                ) : (
+                    movies.map((movie: any, i: number) => (
+                        <View key={i} style={[styles.widgetBookItem, { borderColor: border }]}>
+                            {Platform.OS === 'web' && movie.poster && movie.poster !== 'N/A' && (
+                                React.createElement('img', {
+                                    src: movie.poster,
+                                    style: { width: 40, height: 60, borderRadius: 3, marginRight: 12, objectFit: 'cover' }
+                                })
+                            )}
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.widgetAlbumName, { color: fg }]}>{movie.title}</Text>
+                                <Text style={[styles.widgetAlbumArtist, { color: fgMuted }]}>
+                                    {movie.year} · {movie.status}
+                                </Text>
+                                {movie.status === 'watched' && (
+                                    <View>
+                                        <View style={{ flexDirection: 'row', gap: 4, marginTop: 8 }}>
+                                            {[1,2,3,4,5].map(star => (
+                                                <TouchableOpacity
+                                                    key={star}
+                                                    onPress={() => handleUpdateMovie(i, { rating: star })}
+                                                >
+                                                    <Text style={{ fontSize: 16, color: star <= (movie.rating || 0) ? '#ffd700' : fgMuted }}>
+                                                        {star <= (movie.rating || 0) ? '★' : '☆'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                        <TextInput
+                                            style={[styles.widgetReviewInput, { color: fg, borderColor: border }]}
+                                            value={movie.review || ''}
+                                            onChangeText={(val) => handleUpdateMovie(i, { review: val })}
+                                            placeholder="your review..."
+                                            placeholderTextColor={fgMuted}
+                                            multiline
+                                        />
+                                    </View>
+                                )}
+                            </View>
+                            <View style={{ gap: 8 }}>
+                                {movie.status === 'watchlist' && (
+                                    <TouchableOpacity 
+                                        onPress={() => handleUpdateMovie(i, { status: 'watched' })}
+                                        style={[styles.widgetSmallButton, { borderColor: ACCENT_COLOR }]}
+                                    >
+                                        <Text style={[styles.widgetSmallButtonText, { color: ACCENT_COLOR }]}>watched</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity onPress={() => handleRemoveMovie(i)}>
+                                    <Text style={{ color: '#ff6b6b', fontSize: 18 }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ))
+                )}
+            </View>
+        );
+    }
+
     return null;
 };
 
@@ -2379,6 +2568,98 @@ const ContentOverlay = ({
                                                 )}
                                                 <Text style={[styles.bookTitleSmall, { color: fg }]} numberOfLines={2}>
                                                     {book.title}
+                                                </Text>
+                                            </View>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                );
+            }
+            
+            if (thought.widget.type === 'movie-tracker') {
+                const movies = thought.widget.movies || [];
+                const watched = movies.filter((m: any) => m.status === 'watched');
+                const watchlist = movies.filter((m: any) => m.status === 'watchlist');
+                
+                return (
+                    <View>
+                        <Text style={[styles.essayKind, { color: fgMuted }]}>movie tracker · {thought.space}</Text>
+                        <Text style={[styles.essayTitle, { color: fg }]}>{thought.label}</Text>
+                        <View style={[styles.essayRule, { backgroundColor: border }]} />
+                        
+                        {thought.body && (
+                            <Text style={[styles.essayBody, { color: fg, marginBottom: 20 }]}>{thought.body}</Text>
+                        )}
+                        
+                        <View style={styles.bookTrackerContainer}>
+                            {/* Watched */}
+                            {watched.length > 0 && (
+                                <View style={styles.bookSection}>
+                                    <Text style={[styles.bookSectionTitle, { color: fg }]}>watched</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                        {watched.map((movie: any, i: number) => (
+                                            <View key={i} style={[styles.bookCardSmall, { borderColor: border, marginRight: 12 }]}>
+                                                {Platform.OS === 'web' && movie.poster && movie.poster !== 'N/A' ? (
+                                                    React.createElement('img', {
+                                                        src: movie.poster,
+                                                        style: { width: 100, height: 150, borderRadius: 4, objectFit: 'cover' }
+                                                    })
+                                                ) : (
+                                                    <View style={[styles.bookPlaceholder, { borderColor: border, width: 100, height: 150 }]}>
+                                                        <Text style={{ fontSize: 32 }}>🎬</Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[styles.bookTitleSmall, { color: fg, width: 100 }]} numberOfLines={2}>
+                                                    {movie.title}
+                                                </Text>
+                                                <Text style={[styles.bookAuthors, { color: fgMuted, fontSize: 11 }]}>
+                                                    {movie.year}
+                                                </Text>
+                                                {movie.rating && (
+                                                    <View style={styles.bookRating}>
+                                                        {[1,2,3,4,5].map((star: number) => (
+                                                            <Text key={star} style={styles.bookRatingStar}>
+                                                                {star <= movie.rating! ? '★' : '☆'}
+                                                            </Text>
+                                                        ))}
+                                                    </View>
+                                                )}
+                                                {movie.review && (
+                                                    <Text style={[styles.bookNotes, { color: fg, fontSize: 11, marginTop: 4 }]} numberOfLines={3}>
+                                                        {movie.review}
+                                                    </Text>
+                                                )}
+                                            </View>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            )}
+                            
+                            {/* Watchlist */}
+                            {watchlist.length > 0 && (
+                                <View style={styles.bookSection}>
+                                    <Text style={[styles.bookSectionTitle, { color: fg }]}>watchlist</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                        {watchlist.map((movie: any, i: number) => (
+                                            <View key={i} style={[styles.bookCardSmall, { borderColor: border, marginRight: 12 }]}>
+                                                {Platform.OS === 'web' && movie.poster && movie.poster !== 'N/A' ? (
+                                                    React.createElement('img', {
+                                                        src: movie.poster,
+                                                        style: { width: 100, height: 150, borderRadius: 4, objectFit: 'cover' }
+                                                    })
+                                                ) : (
+                                                    <View style={[styles.bookPlaceholder, { borderColor: border, width: 100, height: 150 }]}>
+                                                        <Text style={{ fontSize: 32 }}>🎬</Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[styles.bookTitleSmall, { color: fg, width: 100 }]} numberOfLines={2}>
+                                                    {movie.title}
+                                                </Text>
+                                                <Text style={[styles.bookAuthors, { color: fgMuted, fontSize: 11 }]}>
+                                                    {movie.year}
                                                 </Text>
                                             </View>
                                         ))}
@@ -5267,6 +5548,16 @@ const styles = StyleSheet.create({
         fontFamily: 'Space Grotesk',
         fontSize: 10,
         letterSpacing: 0.5,
+    },
+    widgetReviewInput: {
+        fontFamily: 'Cormorant Garamond',
+        fontSize: 14,
+        borderWidth: 1,
+        borderRadius: 3,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        marginTop: 8,
+        minHeight: 60,
     },
 
     // Socials compact (in currently widget)
