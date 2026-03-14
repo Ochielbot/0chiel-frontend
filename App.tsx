@@ -679,7 +679,7 @@ const SPACE_NODE_BG: Record<Space, { mind: string; matter: string; confluence: s
 const SPACE_NODE_TEXT: Record<Space, { mind: string; matter: string; confluence: string; void: string }> = {
     mind: { mind: '#e8e8e8', matter: '#aaaaaa', confluence: '#cccccc', void: '#666666' },
     matter: { mind: '#222222', matter: '#111111', confluence: '#333333', void: '#444444' },
-    confluence: { mind: '#e8e8e8', matter: '#111111', confluence: '#dddddd', void: '#888888' },
+    confluence: { mind: '#e8e8e8', matter: '#111111', confluence: '#000000', void: '#888888' },
     void: { mind: '#5a8ab4', matter: '#7a9ab4', confluence: '#6a8ab4', void: '#6b9dc4' },
 };
 
@@ -2599,6 +2599,7 @@ const CurrentlyWidget = ({
     fg, currentSpace, isMobile, screenHeight,
 }: { fg: string; currentSpace: Space; isMobile: boolean; screenHeight: number }) => {
     const [open, setOpen] = useState(false);
+    const [isVisible, setIsVisible] = useState(true);
     const bg = currentSpace === 'matter' ? 'rgba(255,255,255,0.97)' : 'rgba(10,10,10,0.95)';
     const border = currentSpace === 'matter' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)';
     const muted = currentSpace === 'matter' ? '#999' : '#555';
@@ -2625,18 +2626,28 @@ const CurrentlyWidget = ({
 
     const statusBg = currentSpace === 'matter' ? 'rgba(255,255,255,0.85)' : 'rgba(18,18,18,0.88)';
 
+    if (!isVisible) return null;
+
     if (isMobile) {
         return (
             <>
                 {/* Thin tap-to-open status bar at bottom left */}
-                <TouchableOpacity
-                    style={[styles.mobileStatusBar, { backgroundColor: statusBg, borderColor: border }]}
-                    onPress={() => setOpen(v => !v)}
-                    activeOpacity={0.8}>
-                    <Text style={{ fontSize: 12, marginRight: 6 }}>🎵</Text>
-                    <Text style={[{ fontFamily: 'Space Grotesk', fontSize: 10, letterSpacing: 1, color: fg }]}>currently</Text>
-                    <Text style={{ fontSize: 10, marginLeft: 6, color: muted }}>{open ? '✕' : '↑'}</Text>
-                </TouchableOpacity>
+                <View style={[styles.mobileStatusBar, { backgroundColor: statusBg, borderColor: border, flexDirection: 'row', alignItems: 'center' }]}>
+                    <TouchableOpacity
+                        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                        onPress={() => setOpen(v => !v)}
+                        activeOpacity={0.8}>
+                        <Text style={{ fontSize: 12, marginRight: 6 }}>🎵</Text>
+                        <Text style={[{ fontFamily: 'Space Grotesk', fontSize: 10, letterSpacing: 1, color: fg }]}>currently</Text>
+                        <Text style={{ fontSize: 10, marginLeft: 6, color: muted }}>{open ? '↓' : '↑'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        onPress={() => setIsVisible(false)} 
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={{ marginLeft: 10 }}>
+                        <Text style={{ fontSize: 12, color: muted, fontWeight: 'bold' }}>✕</Text>
+                    </TouchableOpacity>
+                </View>
 
                 {/* Full bottom sheet */}
                 <Animated.View style={[
@@ -2906,8 +2917,8 @@ export default function App() {
     const visibleThoughts = thoughts.filter(t => {
         if (t.space === 'void' && !voidUnlocked) return false;
         if (t.hidden && !discoveredNodes.has(t.id)) return false;
-        // Space filter — confluence sees everything
-        if (currentSpace !== 'confluence' && t.space !== currentSpace) return false;
+        // Space filter — each space only shows its own nodes
+        if (t.space !== currentSpace) return false;
         // Kind filter
         if (activeFilter !== 'all' && t.kind !== activeFilter) return false;
         return true;
@@ -3031,35 +3042,35 @@ export default function App() {
                 />
 
                 {/* Nav */}
-                <View style={styles.nav}>
-                    <TouchableOpacity onPress={handleWordmarkPress}>
+                <View style={[styles.nav, isMobile && { flexWrap: 'wrap', gap: 12, justifyContent: 'center' }]}>
+                    <TouchableOpacity onPress={handleWordmarkPress} style={isMobile ? { width: '100%', alignItems: 'center', marginBottom: 4 } : {}}>
                         <Text style={styles.navWordmark}>0chiel</Text>
                     </TouchableOpacity>
                     
-                    <View style={styles.navCenter}>
-                        <View style={styles.navSpaces}>
+                    <View style={[styles.navCenter, isMobile && { flex: 0, width: '100%', marginBottom: 4 }]}>
+                        <View style={[styles.navSpaces, isMobile && { gap: 16 }]}>
                             {(['mind', 'matter', 'confluence'] as Space[]).map(s => (
                                 <TouchableOpacity key={s} onPress={() => switchSpace(s)}>
-                                    <Text style={[styles.navSpace, spaceTabStyle(s)]}>{s}</Text>
+                                    <Text style={[styles.navSpace, spaceTabStyle(s), isMobile && { fontSize: 11 }]}>{s}</Text>
                                 </TouchableOpacity>
                             ))}
                             {hasVoidThoughts && (
                                 <TouchableOpacity onPress={() => switchSpace('void')}>
-                                    <Text style={[styles.navSpace, spaceTabStyle('void')]}>void</Text>
+                                    <Text style={[styles.navSpace, spaceTabStyle('void'), isMobile && { fontSize: 11 }]}>void</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
                     </View>
                     
-                    <View style={styles.navRight}>
+                    <View style={[styles.navRight, isMobile && { width: '100%', alignItems: 'center', minWidth: 'auto' }]}>
                         {isAuthenticated ? (
-                            <TouchableOpacity onPress={handleLogout} style={styles.authButton}>
+                            <TouchableOpacity onPress={handleLogout} style={[styles.authButton, isMobile && { backgroundColor: fg + '11', borderRadius: 4, paddingVertical: 6, paddingHorizontal: 16 }]}>
                                 <Text style={[styles.authButtonText, { color: fg }]}>
                                     admin • logout
                                 </Text>
                             </TouchableOpacity>
                         ) : (
-                            <TouchableOpacity onPress={() => setShowLogin(true)} style={styles.authButton}>
+                            <TouchableOpacity onPress={() => setShowLogin(true)} style={[styles.authButton, isMobile && { backgroundColor: fg + '11', borderRadius: 4, paddingVertical: 6, paddingHorizontal: 16 }]}>
                                 <Text style={[styles.authButtonText, { color: fg + '88' }]}>
                                     {userRole === 'public' ? 'public • login' : 'login'}
                                 </Text>

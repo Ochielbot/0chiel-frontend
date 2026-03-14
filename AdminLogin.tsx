@@ -322,13 +322,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
                         </Text>
                     </TouchableOpacity>
                 )}
-                
-                <Text style={[styles.hint, { color: placeholder }]}>
-                    {passkeyAvailable 
-                        ? 'First time? Register your passkey below, then authenticate with fingerprint/face/PIN' 
-                        : 'Passkey not supported in this browser'
-                    }
-                </Text>
             </View>
         </View>
     );
