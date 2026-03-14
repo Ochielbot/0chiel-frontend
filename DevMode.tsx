@@ -897,30 +897,9 @@ const RecenterPlayground = ({ step }: { step: number }) => {
         { label: 'art', initX: -20, initY: 80 },
     ];
 
-    return (
-        <View style={{ marginBottom: 16 }}>
-            {/* Reference image */}
-            {Platform.OS === 'web' && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                    <Text style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: '#666' }}>Reference:</Text>
-                    {React.createElement('img', {
-                        src: '/pain.webp',
-                        style: { width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }
-                    })}
-                    <Text style={{ fontFamily: 'Space Grotesk', fontSize: 9, color: '#666', flex: 1 }}>
-                        Background image used in recenter demo
-                    </Text>
-                </View>
-            )}
-            
-            <View style={[s.playground, { 
-                backgroundColor: 'rgba(0,0,0,0.6)',
-                ...(Platform.OS === 'web' && {
-                    backgroundImage: 'url(/pain.webp)',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                })
-            }]}>
+    if (Platform.OS !== 'web') {
+        return (
+            <View style={s.playground}>
                 <GestureHandlerRootView style={{ flex: 1 }}>
                     <View style={s.playCanvas}>
                         {nodes.map((node, i) => (
@@ -948,25 +927,116 @@ const RecenterPlayground = ({ step }: { step: number }) => {
                                 backgroundColor: 'rgba(244,228,166,0.2)',
                                 justifyContent: 'center',
                                 alignItems: 'center',
-                                shadowColor: '#f4e4a6',
-                                shadowOpacity: 0.5,
-                                shadowRadius: 10,
-                                shadowOffset: { width: 0, height: 0 },
                             }}
                         >
                             <Text style={{ color: '#f4e4a6', fontSize: 18, fontWeight: 'bold' }}>◎</Text>
                         </TouchableOpacity>
                         
-                        <Text style={[s.playHint, { 
-                            bottom: 70, 
-                            color: '#f4e4a6',
-                            textShadow: '0 0 10px rgba(0,0,0,0.8)',
-                        }]}>
+                        <Text style={[s.playHint, { bottom: 70, color: '#f4e4a6' }]}>
                             ← drag nodes, then press ◎ to recenter
                         </Text>
                     </View>
                 </GestureHandlerRootView>
             </View>
+        );
+    }
+
+    return (
+        <View style={{ marginBottom: 16 }}>
+            {/* Reference image */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                <Text style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: '#666' }}>Reference:</Text>
+                {React.createElement('img', {
+                    src: '/pain.webp',
+                    style: { width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }
+                })}
+                <Text style={{ fontFamily: 'Space Grotesk', fontSize: 9, color: '#666', flex: 1 }}>
+                    Background image used in recenter demo
+                </Text>
+            </View>
+            
+            {/* Web-specific background container */}
+            {React.createElement('div', {
+                style: {
+                    height: 260,
+                    backgroundColor: 'rgba(0,0,0,0.4)',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: 'rgba(244,228,166,0.2)',
+                    marginBottom: 16,
+                    overflow: 'hidden',
+                    backgroundImage: 'url(/pain.webp)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    position: 'relative',
+                },
+            },
+                React.createElement('div', {
+                    style: {
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }
+                },
+                    React.createElement(GestureHandlerRootView, { style: { flex: 1, width: '100%', height: '100%' } },
+                        React.createElement(View, { style: { flex: 1, alignItems: 'center', justifyContent: 'center' } },
+                            ...nodes.map((node, i) => 
+                                React.createElement(PlayNode, {
+                                    key: node.label,
+                                    label: node.label,
+                                    initX: node.initX,
+                                    initY: node.initY,
+                                    accent: '#f4e4a6',
+                                    recenterTrigger: recenterTrigger,
+                                })
+                            ),
+                            
+                            React.createElement(TouchableOpacity, {
+                                onPress: () => setRecenterTrigger((t: number) => t + 1),
+                                style: {
+                                    position: 'absolute',
+                                    bottom: 20,
+                                    alignSelf: 'center',
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 20,
+                                    borderWidth: 2,
+                                    borderColor: '#f4e4a6',
+                                    backgroundColor: 'rgba(244,228,166,0.2)',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    shadowColor: '#f4e4a6',
+                                    shadowOpacity: 0.5,
+                                    shadowRadius: 10,
+                                    shadowOffset: { width: 0, height: 0 },
+                                }
+                            },
+                                React.createElement(Text, {
+                                    style: { color: '#f4e4a6', fontSize: 18, fontWeight: 'bold' }
+                                }, '◎')
+                            ),
+                            
+                            React.createElement(Text, {
+                                style: {
+                                    position: 'absolute',
+                                    bottom: 70,
+                                    fontFamily: 'Space Grotesk',
+                                    fontSize: 10,
+                                    color: '#f4e4a6',
+                                    letterSpacing: 0.5,
+                                    textShadow: '0 0 10px rgba(0,0,0,0.8)',
+                                }
+                            }, '← drag nodes, then press ◎ to recenter')
+                        )
+                    )
+                )
+            )}
         </View>
     );
 };
