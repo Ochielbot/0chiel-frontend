@@ -14,7 +14,7 @@ interface AdminLoginProps {
 }
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, currentSpace }) => {
-    const [username, setUsername] = useState('admin');
+    const username = 'robert'; // Fixed username, not editable
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [passkeyAvailable, setPasskeyAvailable] = useState(false);
@@ -110,7 +110,11 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
 
             if (!beginResponse.ok) {
                 const data = await beginResponse.json();
-                setError(data.error || 'Passkey not set up. Please contact admin to set up passkey authentication.');
+                if (beginResponse.status === 404) {
+                    setError('Passkey not registered. Click "Register Passkey" to set up authentication.');
+                } else {
+                    setError(data.error || 'Authentication failed');
+                }
                 setLoading(false);
                 return;
             }
@@ -162,7 +166,86 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
             }
         } catch (error) {
             console.error('Passkey error:', error);
-            setError('Passkey authentication failed. Please try again or contact admin.');
+            setError('Passkey authentication failed. Please try again or register a passkey first.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePasskeyRegistration = async () => {
+        setLoading(true);
+        setError('');
+
+        try {
+            // Begin registration
+            const beginResponse = await fetch(`${API_BASE}/passkey/register/begin`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+
+            if (!beginResponse.ok) {
+                const data = await beginResponse.json();
+                setError(data.error || 'Registration failed');
+                setLoading(false);
+                return;
+            }
+
+            const options = await beginResponse.json();
+
+            // Create credential
+            const credential = await (navigator as any).credentials.create({
+                publicKey: {
+                    challenge: Uint8Array.from(atob(options.challenge.replace(/-/g, '+').replace(/_/g, '/')), (c: any) => (c as string).charCodeAt(0)),
+                    rp: options.rp,
+                    user: {
+                        id: Uint8Array.from(options.user.id, (c: any) => (c as string).charCodeAt(0)),
+                        name: options.user.name,
+                        displayName: options.user.displayName
+                    },
+                    pubKeyCredParams: options.pubKeyCredParams,
+                    timeout: options.timeout,
+                    attestation: options.attestation,
+                    authenticatorSelection: options.authenticatorSelection
+                }
+            });
+
+            if (!credential) {
+                setError('Passkey registration cancelled');
+                setLoading(false);
+                return;
+            }
+
+            // Complete registration
+            const completeResponse = await fetch(`${API_BASE}/passkey/register/complete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username,
+                    credential: {
+                        id: credential.id,
+                        rawId: btoa(String.fromCharCode(...new Uint8Array((credential as any).rawId))),
+                        type: credential.type,
+                        transports: (credential as any).response?.getTransports?.() || ['internal']
+                    }
+                })
+            });
+
+            const data = await completeResponse.json();
+
+            if (completeResponse.ok) {
+                setError('');
+                // Show success message briefly, then try to authenticate
+                setTimeout(() => {
+                    handlePasskeyLogin();
+                }, 1000);
+                setError('Passkey registered successfully! Authenticating...');
+            } else {
+                setError(data.error || 'Registration failed');
+            }
+        } catch (error) {
+            console.error('Passkey registration error:', error);
+            setError('Passkey registration failed. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -181,14 +264,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
             <View style={[styles.modal, { backgroundColor: bg, borderColor: border }]}>
                 <Text style={[styles.title, { color: fg }]}>admin login</Text>
                 
-                <TextInput
-                    style={[styles.input, { color: fg, borderColor: border }]}
-                    placeholder="username"
-                    placeholderTextColor={placeholder}
-                    value={username}
-                    onChangeText={setUsername}
-                    autoCapitalize="none"
-                />
+                <View style={[styles.usernameDisplay, { borderColor: border }]}>
+                    <Text style={[styles.usernameText, { color: fg }]}>robert</Text>
+                </View>
                 
                 {error ? (
                     <Text style={[styles.error, { color: '#ff6b6b' }]}>{error}</Text>
@@ -219,13 +297,37 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
                             styles.buttonText, 
                             { color: loading ? fg : '#000' }
                         ]}>
-                            {loading ? 'authenticating...' : 'authenticate with passkey →'}
+                            {loading ? 'authenticating...' : 'authenticate →'}
                         </Text>
                     </TouchableOpacity>
                 </View>
                 
+                {error && error.includes('not registered') && (
+                    <TouchableOpacity
+                        style={[
+                            styles.button,
+                            styles.registerButton,
+                            { 
+                                borderColor: '#6b9eff',
+                                backgroundColor: 'transparent',
+                                marginTop: 8,
+                                opacity: passkeyAvailable ? 1 : 0.5
+                            }
+                        ]}
+                        onPress={handlePasskeyRegistration}
+                        disabled={loading || !passkeyAvailable}
+                    >
+                        <Text style={[styles.buttonText, { color: '#6b9eff' }]}>
+                            register passkey
+                        </Text>
+                    </TouchableOpacity>
+                )}
+                
                 <Text style={[styles.hint, { color: placeholder }]}>
-                    {passkeyAvailable ? 'Use fingerprint, face ID, or security key' : 'Passkey not supported in this browser'}
+                    {passkeyAvailable 
+                        ? 'First time? Register your passkey below, then authenticate with fingerprint/face/PIN' 
+                        : 'Passkey not supported in this browser'
+                    }
                 </Text>
             </View>
         </View>
@@ -264,6 +366,22 @@ const styles = StyleSheet.create({
         padding: 12,
         marginBottom: 12,
     },
+    usernameDisplay: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 14,
+        borderWidth: 1,
+        borderRadius: 4,
+        padding: 12,
+        marginBottom: 12,
+        backgroundColor: 'rgba(100,100,100,0.1)',
+        alignItems: 'center',
+    },
+    usernameText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 14,
+        fontWeight: '600',
+        letterSpacing: 0.5,
+    },
     error: {
         fontFamily: 'Space Grotesk',
         fontSize: 12,
@@ -284,6 +402,9 @@ const styles = StyleSheet.create({
     },
     cancelButton: {},
     loginButton: {},
+    registerButton: {
+        width: '100%',
+    },
     buttonText: {
         fontFamily: 'Space Grotesk',
         fontSize: 12,
