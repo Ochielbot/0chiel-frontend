@@ -2182,6 +2182,7 @@ const ContentOverlay = ({
     const [editedBody, setEditedBody] = useState('');
     const [isEditingWidget, setIsEditingWidget] = useState(false);
     const [widgetData, setWidgetData] = useState<any>(null);
+    const [selectedSpace, setSelectedSpace] = useState<Space>('void');
 
     useEffect(() => {
         if (thought) {
@@ -2189,6 +2190,7 @@ const ContentOverlay = ({
             translateY.value = withSpring(0, { damping: 18, stiffness: 150 });
             setEditedBody(thought.body || '');
             setWidgetData(thought.widget || null);
+            setSelectedSpace(thought.space);
             setIsEditing(false);
             setIsEditingWidget(false);
         } else {
@@ -2733,7 +2735,39 @@ const ContentOverlay = ({
                     </TouchableOpacity>
                     
                     {isAdmin && (
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                            {/* Space selector */}
+                            {Platform.OS === 'web' && (
+                                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                                    <Text style={[styles.spaceLabel, { color: fgMuted }]}>space:</Text>
+                                    {React.createElement('select', {
+                                        value: selectedSpace,
+                                        onChange: (e: any) => {
+                                            const newSpace = e.target.value;
+                                            setSelectedSpace(newSpace);
+                                            if (thought && onEdit) {
+                                                onEdit({ ...thought, space: newSpace });
+                                            }
+                                        },
+                                        style: {
+                                            fontFamily: 'Space Grotesk',
+                                            fontSize: 11,
+                                            padding: '6px 8px',
+                                            borderRadius: 4,
+                                            border: `1px solid ${border}`,
+                                            backgroundColor: bg,
+                                            color: fg,
+                                            cursor: 'pointer'
+                                        }
+                                    }, [
+                                        React.createElement('option', { key: 'matter', value: 'matter' }, 'matter'),
+                                        React.createElement('option', { key: 'mind', value: 'mind' }, 'mind'),
+                                        React.createElement('option', { key: 'void', value: 'void' }, 'void'),
+                                        React.createElement('option', { key: 'confluence', value: 'confluence' }, 'confluence')
+                                    ])}
+                                </View>
+                            )}
+                            
                             {!isEditing && !isEditingWidget ? (
                                 <>
                                     {thought.kind === 'widget' && (
@@ -5405,6 +5439,12 @@ const styles = StyleSheet.create({
         fontFamily: 'Space Grotesk',
         fontSize: 11,
         letterSpacing: 0.5,
+    },
+    spaceLabel: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 11,
+        letterSpacing: 0.5,
+        textTransform: 'uppercase',
     },
     editTextArea: {
         fontFamily: 'Cormorant Garamond',
