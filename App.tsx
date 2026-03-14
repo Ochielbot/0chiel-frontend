@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import {
     StyleSheet,
     Text,
@@ -3011,6 +3012,7 @@ export default function App() {
 
     return (
         <GestureHandlerRootView style={styles.root}>
+            <Analytics />
             <View
                 style={StyleSheet.absoluteFill}
                 {...({ onPointerMove } as any)}
