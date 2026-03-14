@@ -1206,8 +1206,8 @@ const FloatingNode = ({
                     </Text>
                 )}
 
-                {/* Media preview for any node with media */}
-                {!isCollage && thought.media && (
+                {/* Media preview for non-media nodes with media attachments */}
+                {!isCollage && !isMedia && thought.media && (
                     <View style={styles.nodeMediaPreview}>
                         {thought.media.type === 'spotify' && Platform.OS === 'web' && thought.media.embedId && (
                             <View style={styles.nodeMediaEmbed}>
