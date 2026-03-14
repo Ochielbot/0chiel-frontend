@@ -150,9 +150,45 @@ const api = {
 
 type Space = 'mind' | 'matter' | 'confluence' | 'void';
 
-type NodeKind = 'fragment' | 'essay' | 'marginal' | 'pinned' | 'media' | 'artifact' | 'riddle' | 'demo' | 'hub' | 'collage';
+type NodeKind = 'fragment' | 'essay' | 'marginal' | 'pinned' | 'media' | 'artifact' | 'riddle' | 'demo' | 'hub' | 'collage' | 'widget';
 
 type MediaType = 'spotify' | 'youtube' | 'wikipedia' | 'iframe' | 'image' | 'voice' | 'text' | 'tiktok' | 'video';
+
+type WidgetType = 'album-ranker' | 'book-tracker';
+
+interface AlbumRanking {
+    tier: 'S' | 'A' | 'B' | 'C' | 'D';
+    albums: Array<{
+        id: string;
+        name: string;
+        artist: string;
+        image: string;
+        musicbrainzUrl: string;
+    }>;
+}
+
+interface BookProgress {
+    id: string;
+    title: string;
+    authors: string[];
+    thumbnail: string;
+    pageCount: number;
+    currentPage: number;
+    status: 'reading' | 'completed' | 'want-to-read';
+    rating?: number;
+    notes?: string;
+    startedAt?: string;
+    completedAt?: string;
+}
+
+interface WidgetData {
+    type: WidgetType;
+    // Album ranker data
+    rankings?: AlbumRanking[];
+    // Book tracker data
+    books?: BookProgress[];
+    lastUpdated?: string;
+}
 
 interface MediaContent {
     type: MediaType;
@@ -186,6 +222,7 @@ interface Thought {
     media?: MediaContent;
     images?: string[];   // for collage nodes
     game?: GameElement;
+    widget?: WidgetData;  // for widget nodes
     hidden?: boolean;
     discoveredBy?: string[];
     customSize?: { width: number; height: number };  // for resizable nodes
@@ -1208,7 +1245,18 @@ const FloatingNode = ({
                                 })}
                             </View>
                         )}
-                        {!thought.media.embedId && (
+                        {thought.media.type === 'iframe' && Platform.OS === 'web' && thought.media.url && (
+                            <View style={styles.nodeMediaEmbed}>
+                                {React.createElement('iframe', {
+                                    src: thought.media.url,
+                                    width: '100%',
+                                    height: constrainedSize.height !== 'auto' ? Math.max(400, (constrainedSize.height as number) - 60) : 400,
+                                    frameBorder: '0',
+                                    style: { borderRadius: 4, display: 'block' }
+                                })}
+                            </View>
+                        )}
+                        {!thought.media.embedId && !thought.media.url && (
                             <Text style={[styles.nodeMediaHint, { color: nodeText, opacity: 0.6 }]}>
                                 tap to open ↗
                             </Text>
@@ -1288,7 +1336,7 @@ const FloatingNode = ({
 
                 {isMedia && thought.media && (
                     <View style={styles.nodeMediaPreview}>
-                        {thought.media.type === 'spotify' && Platform.OS === 'web' && (
+                        {thought.media.type === 'spotify' && Platform.OS === 'web' && thought.media.embedId && (
                             <View style={styles.nodeMediaEmbed}>
                                 <iframe
                                     src={`https://open.spotify.com/embed/track/${thought.media.embedId}?utm_source=generator&theme=0`}
@@ -1299,7 +1347,7 @@ const FloatingNode = ({
                                 />
                             </View>
                         )}
-                        {thought.media.type === 'youtube' && Platform.OS === 'web' && (
+                        {thought.media.type === 'youtube' && Platform.OS === 'web' && thought.media.embedId && (
                             <View style={styles.nodeMediaEmbed}>
                                 <iframe 
                                     width="100%" 
@@ -1311,12 +1359,34 @@ const FloatingNode = ({
                                 />
                             </View>
                         )}
-                        {(thought.media.type === 'tiktok' || thought.media.type === 'video' ||
-                            thought.media.type === 'wikipedia' || thought.media.type === 'iframe') && (
-                                <Text style={[styles.nodeMediaHint, { color: nodeText, opacity: 0.6 }]}>
-                                    media ↗
-                                </Text>
-                            )}
+                        {thought.media.type === 'tiktok' && Platform.OS === 'web' && thought.media.embedId && (
+                            <View style={styles.nodeMediaEmbed}>
+                                <iframe
+                                    src={`https://www.tiktok.com/embed/v2/${thought.media.embedId}`}
+                                    width="100%"
+                                    height={constrainedSize.height !== 'auto' ? Math.max(400, (constrainedSize.height as number) - 60) : 400}
+                                    frameBorder="0"
+                                    allowFullScreen
+                                    style={{ borderRadius: 8 }}
+                                />
+                            </View>
+                        )}
+                        {thought.media.type === 'iframe' && Platform.OS === 'web' && thought.media.url && (
+                            <View style={styles.nodeMediaEmbed}>
+                                <iframe
+                                    src={thought.media.url}
+                                    width="100%"
+                                    height={constrainedSize.height !== 'auto' ? Math.max(400, (constrainedSize.height as number) - 60) : 400}
+                                    frameBorder="0"
+                                    style={{ borderRadius: 4 }}
+                                />
+                            </View>
+                        )}
+                        {(thought.media.type === 'video' || thought.media.type === 'wikipedia') && (
+                            <Text style={[styles.nodeMediaHint, { color: nodeText, opacity: 0.6 }]}>
+                                media ↗
+                            </Text>
+                        )}
                     </View>
                 )}
 
@@ -1584,12 +1654,6 @@ const ContentOverlay = ({
             onClose();
         }
     };
-            translateY.value = withSpring(0, { damping: 18, stiffness: 150 });
-        } else {
-            opacity.value = withTiming(0, { duration: 200 });
-            translateY.value = withTiming(30, { duration: 200 });
-        }
-    }, [thought]);
 
     const overlayStyle = useAnimatedStyle(() => ({
         opacity: opacity.value,
@@ -1623,6 +1687,7 @@ const ContentOverlay = ({
         }
 
         if (thought.kind === 'hub') {
+            // Default hub rendering
             return (
                 <View>
                     <Text style={[styles.essayKind, { color: fgMuted }]}>space · {thought.space}</Text>
@@ -1760,6 +1825,191 @@ const ContentOverlay = ({
                     )}
                 </View>
             );
+        }
+
+        // Widget rendering
+        if (thought.kind === 'widget' && thought.widget) {
+            if (thought.widget.type === 'album-ranker') {
+                const tiers = ['S', 'A', 'B', 'C', 'D'] as const;
+                return (
+                    <View>
+                        <Text style={[styles.essayKind, { color: fgMuted }]}>album ranker · {thought.space}</Text>
+                        <Text style={[styles.essayTitle, { color: fg }]}>{thought.label}</Text>
+                        <View style={[styles.essayRule, { backgroundColor: border }]} />
+                        
+                        {thought.body && (
+                            <Text style={[styles.essayBody, { color: fg, marginBottom: 20 }]}>{thought.body}</Text>
+                        )}
+                        
+                        <View style={styles.albumRankerContainer}>
+                            {tiers.map(tier => {
+                                const tierData = thought.widget?.rankings?.find(r => r.tier === tier);
+                                const albums = tierData?.albums || [];
+                                
+                                return (
+                                    <View key={tier} style={[styles.tierRow, { borderColor: border }]}>
+                                        <View style={[styles.tierLabel, { 
+                                            backgroundColor: tier === 'S' ? '#ffd700' : 
+                                                           tier === 'A' ? '#c0c0c0' : 
+                                                           tier === 'B' ? '#cd7f32' : 
+                                                           tier === 'C' ? '#8b7355' : '#696969'
+                                        }]}>
+                                            <Text style={styles.tierLabelText}>{tier}</Text>
+                                        </View>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tierAlbums}>
+                                            {albums.length === 0 ? (
+                                                <Text style={[styles.tierEmpty, { color: fgMuted }]}>drag albums here</Text>
+                                            ) : (
+                                                albums.map((album, i) => (
+                                                    <View key={i} style={[styles.albumCard, { borderColor: border }]}>
+                                                        {Platform.OS === 'web' && album.image ? (
+                                                            React.createElement('img', {
+                                                                src: album.image,
+                                                                style: { width: 80, height: 80, borderRadius: 4 }
+                                                            })
+                                                        ) : (
+                                                            <View style={[styles.albumPlaceholder, { borderColor: border }]}>
+                                                                <Text style={{ fontSize: 24 }}>🎵</Text>
+                                                            </View>
+                                                        )}
+                                                        <Text style={[styles.albumName, { color: fg }]} numberOfLines={1}>
+                                                            {album.name}
+                                                        </Text>
+                                                        <Text style={[styles.albumArtist, { color: fgMuted }]} numberOfLines={1}>
+                                                            {album.artist}
+                                                        </Text>
+                                                    </View>
+                                                ))
+                                            )}
+                                        </ScrollView>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </View>
+                );
+            }
+            
+            if (thought.widget.type === 'book-tracker') {
+                const books = thought.widget.books || [];
+                const reading = books.filter(b => b.status === 'reading');
+                const completed = books.filter(b => b.status === 'completed');
+                const wantToRead = books.filter(b => b.status === 'want-to-read');
+                
+                return (
+                    <View>
+                        <Text style={[styles.essayKind, { color: fgMuted }]}>book tracker · {thought.space}</Text>
+                        <Text style={[styles.essayTitle, { color: fg }]}>{thought.label}</Text>
+                        <View style={[styles.essayRule, { backgroundColor: border }]} />
+                        
+                        {thought.body && (
+                            <Text style={[styles.essayBody, { color: fg, marginBottom: 20 }]}>{thought.body}</Text>
+                        )}
+                        
+                        <View style={styles.bookTrackerContainer}>
+                            {/* Currently Reading */}
+                            {reading.length > 0 && (
+                                <View style={styles.bookSection}>
+                                    <Text style={[styles.bookSectionTitle, { color: fg }]}>currently reading</Text>
+                                    {reading.map((book, i) => (
+                                        <View key={i} style={[styles.bookCard, { borderColor: border }]}>
+                                            {Platform.OS === 'web' && book.thumbnail ? (
+                                                React.createElement('img', {
+                                                    src: book.thumbnail,
+                                                    style: { width: 60, height: 90, borderRadius: 4, marginRight: 12 }
+                                                })
+                                            ) : (
+                                                <View style={[styles.bookPlaceholder, { borderColor: border }]}>
+                                                    <Text style={{ fontSize: 24 }}>📚</Text>
+                                                </View>
+                                            )}
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={[styles.bookTitle, { color: fg }]}>{book.title}</Text>
+                                                <Text style={[styles.bookAuthors, { color: fgMuted }]}>
+                                                    {book.authors.join(', ')}
+                                                </Text>
+                                                <View style={[styles.bookProgress, { backgroundColor: border }]}>
+                                                    <View style={[styles.bookProgressFill, { 
+                                                        width: `${(book.currentPage / book.pageCount) * 100}%`,
+                                                        backgroundColor: ACCENT_COLOR
+                                                    }]} />
+                                                </View>
+                                                <Text style={[styles.bookProgressText, { color: fgMuted }]}>
+                                                    {book.currentPage} / {book.pageCount} pages
+                                                </Text>
+                                                {book.notes && (
+                                                    <Text style={[styles.bookNotes, { color: fg }]}>{book.notes}</Text>
+                                                )}
+                                            </View>
+                                        </View>
+                                    ))}
+                                </View>
+                            )}
+                            
+                            {/* Completed */}
+                            {completed.length > 0 && (
+                                <View style={styles.bookSection}>
+                                    <Text style={[styles.bookSectionTitle, { color: fg }]}>completed</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                        {completed.map((book, i) => (
+                                            <View key={i} style={[styles.bookCardSmall, { borderColor: border }]}>
+                                                {Platform.OS === 'web' && book.thumbnail ? (
+                                                    React.createElement('img', {
+                                                        src: book.thumbnail,
+                                                        style: { width: 80, height: 120, borderRadius: 4 }
+                                                    })
+                                                ) : (
+                                                    <View style={[styles.bookPlaceholder, { borderColor: border }]}>
+                                                        <Text style={{ fontSize: 24 }}>📚</Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[styles.bookTitleSmall, { color: fg }]} numberOfLines={2}>
+                                                    {book.title}
+                                                </Text>
+                                                {book.rating && (
+                                                    <View style={styles.bookRating}>
+                                                        {[1,2,3,4,5].map(star => (
+                                                            <Text key={star} style={styles.bookRatingStar}>
+                                                                {star <= book.rating! ? '★' : '☆'}
+                                                            </Text>
+                                                        ))}
+                                                    </View>
+                                                )}
+                                            </View>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            )}
+                            
+                            {/* Want to Read */}
+                            {wantToRead.length > 0 && (
+                                <View style={styles.bookSection}>
+                                    <Text style={[styles.bookSectionTitle, { color: fg }]}>want to read</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                        {wantToRead.map((book, i) => (
+                                            <View key={i} style={[styles.bookCardSmall, { borderColor: border }]}>
+                                                {Platform.OS === 'web' && book.thumbnail ? (
+                                                    React.createElement('img', {
+                                                        src: book.thumbnail,
+                                                        style: { width: 80, height: 120, borderRadius: 4 }
+                                                    })
+                                                ) : (
+                                                    <View style={[styles.bookPlaceholder, { borderColor: border }]}>
+                                                        <Text style={{ fontSize: 24 }}>📚</Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[styles.bookTitleSmall, { color: fg }]} numberOfLines={2}>
+                                                    {book.title}
+                                                </Text>
+                                            </View>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                );
+            }
         }
 
         // Default essay/fragment view
@@ -2710,11 +2960,11 @@ const CurrentlyWidget = ({
     const muted = currentSpace === 'matter' ? '#999' : '#555';
 
     // ─ Desktop card logic
-    const desktopHeight = useSharedValue(open ? 320 : 48); // Increased height
+    const desktopHeight = useSharedValue(open ? 420 : 48); // Increased for socials
     const desktopOpacity = useSharedValue(open ? 1 : 0);
     useEffect(() => {
         if (isMobile) return;
-        desktopHeight.value = withSpring(open ? 320 : 48, { damping: 20, stiffness: 140 }); // Increased height
+        desktopHeight.value = withSpring(open ? 420 : 48, { damping: 20, stiffness: 140 }); // Increased for socials
         desktopOpacity.value = withTiming(open ? 1 : 0, { duration: 220 });
     }, [open, isMobile]);
     const desktopBodyStyle = useAnimatedStyle(() => ({ opacity: desktopOpacity.value }));
@@ -2801,6 +3051,29 @@ const CurrentlyWidget = ({
                                 <Text style={[styles.currentlyProject, { color: fg, fontSize: 12, lineHeight: 20 }]}>— overhauling qpid tech sites</Text>
                                 <Text style={[styles.currentlyProject, { color: fg, fontSize: 12, lineHeight: 20 }]}>— bookmarked beta prep</Text>
                             </View>
+
+                            {/* Socials */}
+                            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: border }}>
+                                <Text style={[styles.currentlyLabel, { color: muted, marginBottom: 12 }]}>🔗 find me</Text>
+                                <View style={styles.socialsCompact}>
+                                    {[
+                                        { name: 'ig', url: 'https://instagram.com/0chiel' },
+                                        { name: 'x', url: 'https://twitter.com/0chiel' },
+                                        { name: 'tt', url: 'https://tiktok.com/@0chiel' },
+                                        { name: 'sp', url: 'https://open.spotify.com/user/0chiel' },
+                                        { name: 'pin', url: 'https://pinterest.com/0chiel' },
+                                        { name: 'lb', url: 'https://letterboxd.com/0chiel' },
+                                    ].map((social) => (
+                                        <TouchableOpacity
+                                            key={social.name}
+                                            onPress={() => Platform.OS === 'web' && Linking.openURL(social.url)}
+                                            style={[styles.socialCompactBtn, { borderColor: border }]}
+                                        >
+                                            <Text style={[styles.socialCompactText, { color: fg }]}>{social.name}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
                         </View>
                     </ScrollView>
                 </Animated.View>
@@ -2849,6 +3122,28 @@ const CurrentlyWidget = ({
                         <Text style={[styles.currentlyLabel, { color: muted }]}>🛠 building</Text>
                         <Text style={[styles.currentlyProject, { color: fg }]}>— overhauling qpid tech sites</Text>
                         <Text style={[styles.currentlyProject, { color: fg }]}>— bookmarked beta prep</Text>
+                    </View>
+                    <View style={[styles.currentlyDivider, { backgroundColor: border }]} />
+                    <View style={styles.currentlySection}>
+                        <Text style={[styles.currentlyLabel, { color: muted }]}>🔗 find me</Text>
+                        <View style={styles.socialsCompact}>
+                            {[
+                                { name: 'ig', url: 'https://instagram.com/0chiel' },
+                                { name: 'x', url: 'https://twitter.com/0chiel' },
+                                { name: 'tt', url: 'https://tiktok.com/@0chiel' },
+                                { name: 'sp', url: 'https://open.spotify.com/user/0chiel' },
+                                { name: 'pin', url: 'https://pinterest.com/0chiel' },
+                                { name: 'lb', url: 'https://letterboxd.com/0chiel' },
+                            ].map((social) => (
+                                <TouchableOpacity
+                                    key={social.name}
+                                    onPress={() => Platform.OS === 'web' && Linking.openURL(social.url)}
+                                    style={[styles.socialCompactBtn, { borderColor: border }]}
+                                >
+                                    <Text style={[styles.socialCompactText, { color: fg }]}>{social.name}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
                     </View>
                 </ScrollView>
             </Animated.View>
@@ -3385,7 +3680,7 @@ const styles = StyleSheet.create({
         paddingBottom: 2,
     },
     navRight: {
-        minWidth: Platform.select({ web: 100, default: 'auto' }),
+        minWidth: Platform.select({ web: 100, ios: undefined, android: undefined }),
         alignItems: 'flex-end',
     },
     authButton: {
@@ -4419,7 +4714,6 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         marginBottom: 2,
     },
-});
 
     // Admin button styles
     adminButton: {
@@ -4443,3 +4737,174 @@ const styles = StyleSheet.create({
         padding: 12,
         marginTop: 12,
     },
+
+    // Socials compact (in currently widget)
+    socialsCompact: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 8,
+    },
+    socialCompactBtn: {
+        width: 44,
+        height: 32,
+        borderWidth: 1,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    socialCompactText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 10,
+        letterSpacing: 0.5,
+    },
+
+    // Album ranker widget
+    albumRankerContainer: {
+        gap: 12,
+    },
+    tierRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 8,
+        overflow: 'hidden',
+        minHeight: 120,
+    },
+    tierLabel: {
+        width: 60,
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: 120,
+    },
+    tierLabelText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 32,
+        fontWeight: '700',
+        color: '#000',
+    },
+    tierAlbums: {
+        flex: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+    },
+    tierEmpty: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 11,
+        fontStyle: 'italic',
+        paddingVertical: 40,
+    },
+    albumCard: {
+        width: 100,
+        marginRight: 12,
+        borderWidth: 1,
+        borderRadius: 6,
+        padding: 8,
+    },
+    albumPlaceholder: {
+        width: 80,
+        height: 80,
+        borderWidth: 1,
+        borderRadius: 4,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    albumName: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 11,
+        marginTop: 4,
+        fontWeight: '600',
+    },
+    albumArtist: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 9,
+        marginTop: 2,
+    },
+
+    // Book tracker widget
+    bookTrackerContainer: {
+        gap: 24,
+    },
+    bookSection: {
+        marginBottom: 16,
+    },
+    bookSectionTitle: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 13,
+        letterSpacing: 1,
+        marginBottom: 12,
+        textTransform: 'lowercase',
+    },
+    bookCard: {
+        flexDirection: 'row',
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 12,
+    },
+    bookCardSmall: {
+        width: 100,
+        marginRight: 12,
+        borderWidth: 1,
+        borderRadius: 6,
+        padding: 8,
+    },
+    bookPlaceholder: {
+        width: 60,
+        height: 90,
+        borderWidth: 1,
+        borderRadius: 4,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    bookTitle: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    bookTitleSmall: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 4,
+        marginBottom: 4,
+    },
+    bookAuthors: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 11,
+        marginBottom: 8,
+    },
+    bookProgress: {
+        height: 4,
+        borderRadius: 2,
+        overflow: 'hidden',
+        marginBottom: 4,
+    },
+    bookProgressFill: {
+        height: '100%',
+        borderRadius: 2,
+    },
+    bookProgressText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 10,
+        marginBottom: 4,
+    },
+    bookNotes: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 11,
+        fontStyle: 'italic',
+        marginTop: 8,
+    },
+    bookRating: {
+        flexDirection: 'row',
+        marginTop: 4,
+    },
+    bookRatingStar: {
+        fontSize: 12,
+        color: '#ffd700',
+    },
+});
