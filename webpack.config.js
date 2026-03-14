@@ -21,7 +21,7 @@ module.exports = (env, argv) => {
                 'react-native': 'react-native-web',
             },
             fallback: {
-                "process": "process/browser",
+                "process": "process/browser.js",
                 "buffer": "buffer",
                 "stream": "stream-browserify",
                 "util": "util",
@@ -63,7 +63,7 @@ module.exports = (env, argv) => {
                 'process.browser': JSON.stringify(true),
             }),
             new webpack.ProvidePlugin({
-                process: 'process/browser',
+                process: 'process/browser.js',
                 Buffer: ['buffer', 'Buffer'],
             }),
             new HtmlWebpackPlugin({
