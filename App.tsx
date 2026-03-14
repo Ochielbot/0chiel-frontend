@@ -2824,7 +2824,7 @@ export default function App() {
             setThoughts(data);
             
             // Auto-unlock void if there are thoughts in it
-            if (data.some(t => t.space === 'void')) {
+            if (data.some((t: Thought) => t.space === 'void')) {
                 setVoidUnlocked(true);
             }
         } catch (error) {
