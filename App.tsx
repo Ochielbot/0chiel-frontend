@@ -3044,37 +3044,37 @@ export default function App() {
                 />
 
                 {/* Nav */}
-                <View style={[styles.nav, isMobile && { flexWrap: 'wrap', gap: 12, justifyContent: 'center' }]}>
-                    <TouchableOpacity onPress={handleWordmarkPress} style={isMobile ? { width: '100%', alignItems: 'center', marginBottom: 4 } : {}}>
+                <View style={styles.nav}>
+                    <TouchableOpacity onPress={handleWordmarkPress}>
                         <Text style={styles.navWordmark}>0chiel</Text>
                     </TouchableOpacity>
                     
-                    <View style={[styles.navCenter, isMobile && { flex: 0, width: '100%', marginBottom: 4 }]}>
-                        <View style={[styles.navSpaces, isMobile && { gap: 16 }]}>
+                    <View style={styles.navCenter}>
+                        <View style={styles.navSpaces}>
                             {(['mind', 'matter', 'confluence'] as Space[]).map(s => (
                                 <TouchableOpacity key={s} onPress={() => switchSpace(s)}>
-                                    <Text style={[styles.navSpace, spaceTabStyle(s), isMobile && { fontSize: 11 }]}>{s}</Text>
+                                    <Text style={[styles.navSpace, spaceTabStyle(s)]}>{s}</Text>
                                 </TouchableOpacity>
                             ))}
                             {hasVoidThoughts && (
                                 <TouchableOpacity onPress={() => switchSpace('void')}>
-                                    <Text style={[styles.navSpace, spaceTabStyle('void'), isMobile && { fontSize: 11 }]}>void</Text>
+                                    <Text style={[styles.navSpace, spaceTabStyle('void')]}>void</Text>
                                 </TouchableOpacity>
                             )}
                         </View>
                     </View>
                     
-                    <View style={[styles.navRight, isMobile && { width: '100%', alignItems: 'center', minWidth: 'auto' }]}>
+                    <View style={styles.navRight}>
                         {isAuthenticated ? (
-                            <TouchableOpacity onPress={handleLogout} style={[styles.authButton, isMobile && { backgroundColor: fg + '11', borderRadius: 4, paddingVertical: 6, paddingHorizontal: 16 }]}>
+                            <TouchableOpacity onPress={handleLogout} style={styles.authButton}>
                                 <Text style={[styles.authButtonText, { color: fg }]}>
-                                    admin • logout
+                                    {isMobile ? 'logout' : 'admin • logout'}
                                 </Text>
                             </TouchableOpacity>
                         ) : (
-                            <TouchableOpacity onPress={() => setShowLogin(true)} style={[styles.authButton, isMobile && { backgroundColor: fg + '11', borderRadius: 4, paddingVertical: 6, paddingHorizontal: 16 }]}>
+                            <TouchableOpacity onPress={() => setShowLogin(true)} style={styles.authButton}>
                                 <Text style={[styles.authButtonText, { color: fg + '88' }]}>
-                                    {userRole === 'public' ? 'public • login' : 'login'}
+                                    {isMobile ? 'login' : (userRole === 'public' ? 'public • login' : 'login')}
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -3230,35 +3230,36 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 28,
+        paddingHorizontal: Platform.select({ web: 28, default: 16 }),
         paddingTop: Platform.OS === 'web' ? 24 : 56,
         paddingBottom: 12,
         zIndex: 20,
+        gap: Platform.select({ web: 0, default: 8 }),
     },
     navWordmark: {
         fontFamily: 'Space Grotesk',
-        fontSize: 16,
+        fontSize: Platform.select({ web: 16, default: 14 }),
         letterSpacing: 1,
         color: '#fff',
         opacity: 0.9,
     },
     navCenter: {
-        flex: 1,
+        flex: Platform.select({ web: 1, default: 0 }),
         alignItems: 'center',
     },
     navSpaces: {
         flexDirection: 'row',
-        gap: 28,
+        gap: Platform.select({ web: 28, default: 12 }),
     },
     navSpace: {
         fontFamily: 'Space Grotesk',
-        fontSize: 13,
-        letterSpacing: 1.5,
+        fontSize: Platform.select({ web: 13, default: 11 }),
+        letterSpacing: Platform.select({ web: 1.5, default: 0.8 }),
         textTransform: 'lowercase',
         paddingBottom: 2,
     },
     navRight: {
-        minWidth: 100,
+        minWidth: Platform.select({ web: 100, default: 'auto' }),
         alignItems: 'flex-end',
     },
     authButton: {
