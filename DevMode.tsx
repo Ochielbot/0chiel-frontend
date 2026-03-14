@@ -6,13 +6,13 @@
  * - Live node-physics playground (draggable nodes + live code)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-    View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView,
+    View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView, TextInput,
 } from 'react-native';
 import Animated, {
     useSharedValue, useAnimatedStyle,
-    withSpring, withTiming, withDecay, cancelAnimation,
+    withSpring, withTiming, withDecay, cancelAnimation, withDelay, withSequence, runOnJS,
 } from 'react-native-reanimated';
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -20,19 +20,12 @@ import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-g
 
 type TokType = 'kw' | 'str' | 'cmt' | 'num' | 'typ' | 'fn' | 'op' | 'plain';
 
-interface Spot {
-    xFrac: number; yFrac: number;
-    wFrac: number; hFrac: number;
-    radius: number;
-}
-
 interface DevStep {
     id: string;
     title: string;
     sub: string;
     body: string;
     code: string;
-    spot: Spot | null;
     isPlayground?: boolean;
     hotLines: number[];
 }
@@ -44,7 +37,7 @@ const STEPS: DevStep[] = [
         id: 'dots',
         title: '⚇ living grid',
         sub: 'ParticleBackground',
-        body: 'Every dot is a canvas particle. Your cursor position is a Reanimated shared value — on each animation frame, each particle measures distance to the cursor and is pushed away if within 80px. No re-renders, pure JS-thread math.',
+        body: 'Every dot is a canvas particle that responds to your cursor. Move your mouse around the playground below to see particles get pushed away within 80px radius. No re-renders, pure JS-thread math with Reanimated shared values.',
         code: `particles.forEach(p => {
   const dx = mouseX.value - p.x;
   const dy = mouseY.value - p.y;
@@ -61,14 +54,14 @@ const STEPS: DevStep[] = [
   p.y += p.vy * 0.92;
   p.vx *= 0.95;
 });`,
-        spot: { xFrac: 0, yFrac: 0, wFrac: 1, hFrac: 1, radius: 0 },
+        isPlayground: true,
         hotLines: [5, 6, 7, 8, 12, 13],
     },
     {
         id: 'chips',
         title: '◯ filter chips',
         sub: 'withDelay + withSequence',
-        body: 'On mount each chip schedules a staggered pulse via withDelay(n×80ms). The sequence tweens border opacity 0→1→0.5→1→0, creating a ripple that trails across the row — all driven by a single shared value.',
+        body: 'Watch the staggered pulse animation below. Each chip schedules a pulse via withDelay(n×80ms). The sequence creates a ripple effect across the row — all driven by shared values.',
         code: `pulse.value = withDelay(
   animDelay, // n × 80ms stagger
   withSequence(
@@ -85,14 +78,60 @@ const chipStyle = useAnimatedStyle(() => ({
   })\`,
   shadowOpacity: pulse.value * 0.5,
 }));`,
-        spot: { xFrac: 0, yFrac: 0.1, wFrac: 0.72, hFrac: 0.08, radius: 20 },
+        isPlayground: true,
         hotLines: [2, 3, 4, 5, 6, 7, 11, 12, 13],
+    },
+    {
+        id: 'spaces',
+        title: '△ space switching',
+        sub: 'ripple + particle burst',
+        body: 'Click the space buttons below to see the transition effects. Switching fires a ripple + particle burst immediately, then delays the content change by 300ms for smooth visual flow.',
+        code: `const switchSpace = (space: Space) => {
+  // visual effects fire instantly
+  setRippleCenter({ x: width/2, y: height/2 });
+  setRippleVisible(true);
+  setBurstVisible(true);
+
+  // content change is delayed 300ms
+  setTimeout(() => {
+    setCurrentSpace(space);
+    setBurstVisible(false);
+  }, 300);
+};`,
+        isPlayground: true,
+        hotLines: [2, 3, 4, 5, 8, 9, 10, 11],
+    },
+    {
+        id: 'media',
+        title: '🎵 rich media embeds',
+        sub: 'Spotify + YouTube + TikTok',
+        body: 'Paste media URLs below to see live embed previews. The system extracts embed IDs and renders native iframes just like in the real capture panel.',
+        code: `const extractEmbedId = (url: string) => {
+  if (url.includes('spotify.com/track/')) {
+    return url.split('track/')[1].split('?')[0];
+  }
+  if (url.includes('youtube.com/watch?v=')) {
+    return url.split('v=')[1].split('&')[0];
+  }
+  if (url.includes('tiktok.com/') && url.includes('/video/')) {
+    return url.split('/video/')[1].split('?')[0];
+  }
+  return '';
+};
+
+// Render Spotify embed
+<iframe
+  src={\`https://open.spotify.com/embed/track/\${embedId}\`}
+  width="100%" height="152" frameBorder="0"
+  allow="encrypted-media" />`,
+        isPlayground: true,
+        hotLines: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 16, 17, 18],
     },
     {
         id: 'nodes',
         title: '□ node physics',
         sub: 'Gesture.Pan + withDecay',
-        body: 'Drag the nodes below. Gesture.Pan() fires onChange on the JS thread with delta values — we add directly to shared values (no setState). onFinalize captures fling velocity and passes it to withDecay for momentum.',
+        body: 'Drag the nodes below to feel the physics. Gesture.Pan() fires onChange on the JS thread with delta values — we add directly to shared values (no setState). onFinalize captures fling velocity for momentum.',
         code: `const panGesture = Gesture.Pan()
   .onBegin(() => {
     cancelAnimation(x);
@@ -111,41 +150,14 @@ const chipStyle = useAnimatedStyle(() => ({
       velocity: e.velocityY,
     });
   });`,
-        spot: null,
         isPlayground: true,
         hotLines: [6, 7, 8, 11, 12, 13, 14, 15],
-    },
-    {
-        id: 'spaces',
-        title: '△ spaces',
-        sub: 'switchSpace + burst',
-        body: 'mind / matter / confluence are conceptual layers. Switching fires a ripple + particle burst immediately, then a 300ms setTimeout flips the space state — giving the animation time to play before content swaps.',
-        code: `const switchSpace = (space: Space) => {
-  // visual effects fire instantly
-  setRippleCenter({ x: width/2, y: height/2 });
-  setRippleVisible(true);
-  setBurstVisible(true);
-
-  // content change is delayed 300ms
-  // so the burst plays first
-  setTimeout(() => {
-    setCurrentSpace(space);
-    setBurstVisible(false);
-  }, 300);
-};
-
-// each node carries a space field
-const visible = THOUGHTS.filter(t =>
-  t.space === currentSpace ||
-  t.space === 'confluence');`,
-        spot: { xFrac: 0.6, yFrac: 0, wFrac: 0.4, hFrac: 0.065, radius: 0 },
-        hotLines: [8, 9, 10, 11, 14, 15, 16],
     },
     {
         id: 'recenter',
         title: '◎ spring recenter',
         sub: 'recenterTrigger + withSpring',
-        body: 'Pressing ◎ increments a counter prop. Each FloatingNode watches it in a useEffect — when it changes, shared X/Y values spring back to initialX/Y. No unmount/remount, just smooth animation driven by mass + damping.',
+        body: 'Drag the nodes around, then press the recenter button. Each node watches a trigger counter — when it changes, shared X/Y values spring back to initialX/Y with physics.',
         code: `// in each FloatingNode:
 useEffect(() => {
   if (recenterTrigger === 0) return;
@@ -162,14 +174,14 @@ useEffect(() => {
     stiffness: 90,
   });
 }, [recenterTrigger]);`,
-        spot: { xFrac: 0.43, yFrac: 0.87, wFrac: 0.14, hFrac: 0.1, radius: 50 },
+        isPlayground: true,
         hotLines: [6, 7, 8, 9, 10, 11, 12],
     },
     {
         id: 'capture',
         title: '/ quick capture',
-        sub: 'keydown + CapturePanel',
-        body: 'A global keydown listener on window catches "/" and toggles the capture panel. It guards against INPUT/TEXTAREA focus, preventing interference while typing. The panel slides in/out via spring-animated translateY.',
+        sub: 'keydown + slide animation',
+        body: 'Press "/" in the playground below to see the capture panel slide in. A global keydown listener catches "/" and animates the panel with spring physics. Try typing in the input to see the guard logic.',
         code: `useEffect(() => {
   const handler = (e: KeyboardEvent) => {
     const tag = e.target?.tagName;
@@ -186,7 +198,7 @@ useEffect(() => {
   return () =>
     window.removeEventListener('keydown', handler);
 }, [captureOpen]);`,
-        spot: { xFrac: 0.87, yFrac: 0.87, wFrac: 0.1, hFrac: 0.1, radius: 25 },
+        isPlayground: true,
         hotLines: [6, 7, 8, 11, 12],
     },
 ];
@@ -201,7 +213,7 @@ const KW = new Set([
 ]);
 
 const COLORS: Record<TokType, string> = {
-    kw:    '#C792EA',
+    kw:    '#f4e4a6', // Gold for keywords
     str:   '#C3E88D',
     cmt:   '#546E7A',
     num:   '#F78C6C',
@@ -272,7 +284,7 @@ const CodeBlock = ({ code, hotLines, step }: { code: string; hotLines: number[];
 
     return React.createElement('div', {
         style: {
-            background: 'linear-gradient(145deg,#0f0c29 0%,#1a1040 55%,#0a0a18 100%)',
+            background: 'linear-gradient(145deg,#2a1f0a 0%,#3d2f14 55%,#1a1408 100%)', // Gold gradient
             borderRadius: 12,
             padding: '14px 0',
             fontFamily: "'JetBrains Mono','Fira Code','Monaco',monospace",
@@ -281,8 +293,8 @@ const CodeBlock = ({ code, hotLines, step }: { code: string; hotLines: number[];
             overflowX: 'auto' as const,
             overflowY: 'auto' as const,
             maxHeight: 270,
-            border: '1px solid rgba(124,58,237,0.25)',
-            boxShadow: '0 0 40px rgba(124,58,237,0.1),inset 0 1px 0 rgba(255,255,255,0.03)',
+            border: '1px solid rgba(244,228,166,0.25)', // Gold border
+            boxShadow: '0 0 40px rgba(244,228,166,0.1),inset 0 1px 0 rgba(255,255,255,0.03)', // Gold glow
             position: 'relative' as const,
             flexShrink: 0,
         },
@@ -290,7 +302,7 @@ const CodeBlock = ({ code, hotLines, step }: { code: string; hotLines: number[];
         React.createElement('div', {
             style: {
                 position: 'absolute' as const, top: 8, right: 12,
-                fontSize: 9, letterSpacing: 1.5, color: 'rgba(124,58,237,0.55)',
+                fontSize: 9, letterSpacing: 1.5, color: 'rgba(244,228,166,0.55)', // Gold
                 fontFamily: 'inherit', textTransform: 'uppercase' as const, userSelect: 'none' as const,
             },
         }, 'tsx'),
@@ -301,8 +313,8 @@ const CodeBlock = ({ code, hotLines, step }: { code: string; hotLines: number[];
                 key: idx,
                 style: {
                     display: 'flex', alignItems: 'baseline',
-                    backgroundColor: hot ? 'rgba(124,58,237,0.16)' : 'transparent',
-                    borderLeft: `2px solid ${hot ? '#a78bfa' : 'transparent'}`,
+                    backgroundColor: hot ? 'rgba(244,228,166,0.16)' : 'transparent', // Gold highlight
+                    borderLeft: `2px solid ${hot ? '#f4e4a6' : 'transparent'}`, // Gold border
                     paddingLeft: 10, paddingRight: 20, minHeight: 20,
                     transition: 'background-color 350ms ease, border-color 350ms ease',
                 },
@@ -333,9 +345,9 @@ const CodeBlock = ({ code, hotLines, step }: { code: string; hotLines: number[];
     );
 };
 
-// ─── SVG Spotlight ────────────────────────────────────────────────────────────
+// ─── Pulse Highlight (replaces spotlight) ─────────────────────────────────────
 
-const SpotlightSVG = ({
+const PulseHighlight = ({
     spot, sw, sh,
 }: { spot: Spot; sw: number; sh: number }) => {
     if (Platform.OS !== 'web') return null;
@@ -346,51 +358,719 @@ const SpotlightSVG = ({
     const h = spot.hFrac * sh;
     const r = spot.radius;
 
-    const transition = 'x 600ms cubic-bezier(0.34,1.56,0.64,1),y 600ms cubic-bezier(0.34,1.56,0.64,1),width 600ms cubic-bezier(0.34,1.56,0.64,1),height 600ms cubic-bezier(0.34,1.56,0.64,1)';
+    return React.createElement('div', {
+        style: {
+            position: 'fixed',
+            left: x,
+            top: y,
+            width: w,
+            height: h,
+            borderRadius: r,
+            border: '2px solid #f4e4a6',
+            backgroundColor: 'rgba(244,228,166,0.08)',
+            boxShadow: '0 0 20px rgba(244,228,166,0.4), inset 0 0 20px rgba(244,228,166,0.1)',
+            pointerEvents: 'none',
+            zIndex: 151,
+            animation: 'pulse-glow 2s ease-in-out infinite',
+        } as any,
+    });
+};
 
-    return React.createElement('svg', {
-        style: { position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 151 } as any,
-        width: '100%', height: '100%',
-    },
-        React.createElement('defs', null,
-            React.createElement('mask', { id: 'dm-mask' },
-                React.createElement('rect', { width: '100%', height: '100%', fill: 'white' }),
-                React.createElement('rect', { x, y, width: w, height: h, rx: r, ry: r, fill: 'black', style: { transition } })
-            )
-        ),
-        // dark overlay with cutout
-        React.createElement('rect', {
-            width: '100%', height: '100%',
-            fill: 'rgba(0,0,0,0.72)', mask: 'url(#dm-mask)',
-        }),
-        // glowing border around spotlight
-        React.createElement('rect', {
-            x: x - 1, y: y - 1, width: w + 2, height: h + 2,
-            rx: r + 1, ry: r + 1,
-            fill: 'none', stroke: 'rgba(167,139,250,0.6)', strokeWidth: 1.5,
-            style: { transition } as any,
-        }),
-        // corner accents
-        ...([
-            [x + 4, y + 4], [x + w - 4, y + 4],
-            [x + 4, y + h - 4], [x + w - 4, y + h - 4],
-        ] as [number, number][]).map(([cx, cy], i) =>
-            React.createElement('circle', {
-                key: i, cx, cy, r: 3,
-                fill: '#a78bfa', opacity: 0.7,
-            })
-        )
+// Add CSS animation for pulse effect
+if (Platform.OS === 'web') {
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes pulse-glow {
+            0%, 100% { 
+                opacity: 0.6;
+                transform: scale(1);
+                box-shadow: 0 0 20px rgba(244,228,166,0.4), inset 0 0 20px rgba(244,228,166,0.1);
+            }
+            50% { 
+                opacity: 0.9;
+                transform: scale(1.02);
+                box-shadow: 0 0 30px rgba(244,228,166,0.6), inset 0 0 30px rgba(244,228,166,0.2);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// ─── Playground Components ───────────────────────────────────────────────────
+
+// Particle playground for dots step
+const ParticlePlayground = ({ step }: { step: number }) => {
+    const mouseX = useSharedValue(0);
+    const mouseY = useSharedValue(0);
+    const particles = useRef<Array<{ x: number; y: number; vx: number; vy: number }>>([]);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const animationRef = useRef<number>();
+    
+    useEffect(() => {
+        // Initialize particles with default size, will be updated when canvas is ready
+        particles.current = Array.from({ length: 25 }, () => ({
+            x: Math.random() * 400,
+            y: Math.random() * 260,
+            vx: 0,
+            vy: 0,
+        }));
+    }, []);
+
+    if (Platform.OS !== 'web') {
+        return (
+            <View style={s.playground}>
+                <Text style={s.playHint}>Particle physics demo (web only)</Text>
+            </View>
+        );
+    }
+
+    return (
+        <View style={{ marginBottom: 16 }}>
+            {/* Reference image */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                <Text style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: '#666' }}>Reference:</Text>
+                {React.createElement('img', {
+                    src: '/gojo.avif',
+                    style: { width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }
+                })}
+                <Text style={{ fontFamily: 'Space Grotesk', fontSize: 9, color: '#666', flex: 1 }}>
+                    Background image used in particle demo
+                </Text>
+            </View>
+            
+            {React.createElement('div', {
+                style: {
+                    height: 260,
+                    width: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.4)',
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: 'rgba(244,228,166,0.2)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    backgroundImage: 'url(/gojo.avif)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                },
+                onMouseMove: (e: any) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    mouseX.value = e.clientX - rect.left;
+                    mouseY.value = e.clientY - rect.top;
+                },
+            },
+                React.createElement('canvas', {
+                    style: { 
+                        display: 'block', 
+                        width: '100%', 
+                        height: '100%',
+                        backgroundColor: 'rgba(0,0,0,0.3)' 
+                    },
+                    ref: (canvas: HTMLCanvasElement) => {
+                        if (!canvas || canvasRef.current === canvas) return;
+                        canvasRef.current = canvas;
+                        
+                        // Set canvas resolution to match display size
+                        const rect = canvas.getBoundingClientRect();
+                        canvas.width = rect.width;
+                        canvas.height = rect.height;
+                        
+                        // Reinitialize particles for the actual canvas size
+                        const particleCount = Math.floor(rect.width / 20);
+                        particles.current = Array.from({ length: particleCount }, () => ({
+                            x: Math.random() * rect.width,
+                            y: Math.random() * rect.height,
+                            vx: 0,
+                            vy: 0,
+                        }));
+                        
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) return;
+
+                        const animate = () => {
+                            if (!canvasRef.current) return;
+                            
+                            ctx.clearRect(0, 0, canvas.width, canvas.height);
+                            
+                            particles.current.forEach(p => {
+                                const dx = mouseX.value - p.x;
+                                const dy = mouseY.value - p.y;
+                                const dist = Math.hypot(dx, dy);
+
+                                if (dist < 80) {
+                                    p.vx -= (dx / dist) * 2.5;
+                                    p.vy -= (dy / dist) * 2.5;
+                                }
+
+                                p.x += p.vx * 0.92;
+                                p.y += p.vy * 0.92;
+                                p.vx *= 0.95;
+                                p.vy *= 0.95;
+
+                                // Bounds
+                                if (p.x < 0 || p.x > canvas.width) p.vx *= -0.8;
+                                if (p.y < 0 || p.y > canvas.height) p.vy *= -0.8;
+                                p.x = Math.max(0, Math.min(canvas.width, p.x));
+                                p.y = Math.max(0, Math.min(canvas.height, p.y));
+
+                                // Draw particle with glow
+                                ctx.shadowColor = '#f4e4a6';
+                                ctx.shadowBlur = 10;
+                                ctx.fillStyle = '#f4e4a6';
+                                ctx.beginPath();
+                                ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                                ctx.fill();
+                                ctx.shadowBlur = 0;
+                            });
+
+                            animationRef.current = requestAnimationFrame(animate);
+                        };
+                        animate();
+                    },
+                }),
+                React.createElement('div', {
+                    style: {
+                        position: 'absolute',
+                        bottom: 12,
+                        left: 12,
+                        fontFamily: 'Space Grotesk',
+                        fontSize: 10,
+                        color: '#f4e4a6',
+                        letterSpacing: 0.5,
+                        textShadow: '0 0 10px rgba(0,0,0,0.8)',
+                    },
+                }, '← move mouse to repel particles')
+            )}
+        </View>
     );
 };
 
-// ─── Node Playground ─────────────────────────────────────────────────────────
+// Filter chips playground
+const ChipsPlayground = ({ step }: { step: number }) => {
+    const chips = ['all', 'fragment', 'essay', 'collage', 'artifact'];
+    const pulses = chips.map(() => useSharedValue(0));
+    const [activeChip, setActiveChip] = useState('all');
 
-const PlayNode = ({ label, initX, initY, accent }: {
-    label: string; initX: number; initY: number; accent: string;
+    const triggerAnimation = () => {
+        chips.forEach((_, i) => {
+            pulses[i].value = 0;
+            pulses[i].value = withDelay(
+                i * 80,
+                withSequence(
+                    withTiming(1, { duration: 600 }),
+                    withTiming(0.5, { duration: 400 }),
+                    withTiming(1, { duration: 400 }),
+                    withTiming(0, { duration: 600 }),
+                )
+            );
+        });
+    };
+
+    useEffect(() => {
+        triggerAnimation();
+    }, [step]);
+
+    return (
+        <View style={s.playground}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
+                    {chips.map((chip, i) => {
+                        const chipStyle = useAnimatedStyle(() => ({
+                            borderColor: `rgba(244,228,166,${0.25 + pulses[i].value * 0.6})`,
+                            shadowColor: '#f4e4a6',
+                            shadowOpacity: pulses[i].value * 0.5,
+                            shadowRadius: 6,
+                            shadowOffset: { width: 0, height: 0 },
+                        }));
+
+                        return (
+                            <TouchableOpacity
+                                key={chip}
+                                onPress={() => setActiveChip(chip)}
+                            >
+                                <Animated.View
+                                    style={[
+                                        {
+                                            borderWidth: 1,
+                                            borderRadius: 20,
+                                            paddingHorizontal: 12,
+                                            paddingVertical: 6,
+                                            backgroundColor: activeChip === chip ? 'rgba(244,228,166,0.2)' : 'rgba(244,228,166,0.1)',
+                                        },
+                                        chipStyle,
+                                    ]}
+                                >
+                                    <Text style={{ 
+                                        fontFamily: 'Space Grotesk', 
+                                        fontSize: 11, 
+                                        color: activeChip === chip ? '#f4e4a6' : '#999'
+                                    }}>
+                                        {chip}
+                                    </Text>
+                                </Animated.View>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+                
+                <TouchableOpacity
+                    onPress={triggerAnimation}
+                    style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: '#f4e4a6',
+                        backgroundColor: 'rgba(244,228,166,0.1)',
+                    }}
+                >
+                    <Text style={{ fontFamily: 'Space Grotesk', fontSize: 12, color: '#f4e4a6' }}>
+                        Replay Animation
+                    </Text>
+                </TouchableOpacity>
+            </View>
+            <Text style={s.playHint}>← click chips & replay button</Text>
+        </View>
+    );
+};
+
+// Media embeds playground
+const MediaPlayground = ({ step }: { step: number }) => {
+    const [mediaUrl, setMediaUrl] = useState('https://www.youtube.com/watch?v=q86g1aop6a8&list=RDq86g1aop6a8&start_radio=1');
+    const [embedId, setEmbedId] = useState('');
+    const [mediaType, setMediaType] = useState<'spotify' | 'youtube' | 'tiktok' | null>(null);
+
+    const extractEmbedId = (url: string) => {
+        if (url.includes('spotify.com/track/')) {
+            setMediaType('spotify');
+            return url.split('track/')[1].split('?')[0];
+        }
+        if (url.includes('youtube.com/watch?v=')) {
+            setMediaType('youtube');
+            return url.split('v=')[1].split('&')[0];
+        }
+        if (url.includes('youtu.be/')) {
+            setMediaType('youtube');
+            return url.split('youtu.be/')[1].split('?')[0];
+        }
+        if (url.includes('tiktok.com/') && url.includes('/video/')) {
+            setMediaType('tiktok');
+            return url.split('/video/')[1].split('?')[0];
+        }
+        setMediaType(null);
+        return '';
+    };
+
+    useEffect(() => {
+        const id = extractEmbedId(mediaUrl);
+        setEmbedId(id);
+    }, [mediaUrl]);
+
+    const sampleUrls = [
+        { type: 'Spotify', url: 'https://open.spotify.com/track/5LO3M8pfuprpwNN1p3tuxW' },
+        { type: 'YouTube', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' },
+        { type: 'TikTok', url: 'https://www.tiktok.com/@username/video/1234567890123456789' },
+    ];
+
+    if (Platform.OS !== 'web') {
+        return (
+            <View style={s.playground}>
+                <Text style={s.playHint}>Media embeds demo (web only)</Text>
+            </View>
+        );
+    }
+
+    return (
+        <View style={s.playground}>
+            <View style={{ padding: 16, flex: 1 }}>
+                <TextInput
+                    style={{
+                        borderWidth: 1,
+                        borderColor: 'rgba(244,228,166,0.3)',
+                        borderRadius: 8,
+                        padding: 12,
+                        fontFamily: 'Space Grotesk',
+                        fontSize: 12,
+                        color: '#f4e4a6',
+                        backgroundColor: 'rgba(244,228,166,0.05)',
+                        marginBottom: 12,
+                    }}
+                    placeholder="Paste Spotify, YouTube, or TikTok URL..."
+                    placeholderTextColor="#666"
+                    value={mediaUrl}
+                    onChangeText={setMediaUrl}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+                    {sampleUrls.map((sample, i) => (
+                        <TouchableOpacity
+                            key={i}
+                            onPress={() => setMediaUrl(sample.url)}
+                            style={{
+                                paddingHorizontal: 8,
+                                paddingVertical: 4,
+                                borderRadius: 4,
+                                borderWidth: 1,
+                                borderColor: 'rgba(244,228,166,0.3)',
+                                backgroundColor: 'rgba(244,228,166,0.1)',
+                            }}
+                        >
+                            <Text style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: '#f4e4a6' }}>
+                                {sample.type}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+                {embedId && mediaType && (
+                    <View style={{ flex: 1, minHeight: 200 }}>
+                        {mediaType === 'spotify' && React.createElement('iframe', {
+                            src: `https://open.spotify.com/embed/track/${embedId}?utm_source=generator&theme=0`,
+                            width: '100%',
+                            height: '152',
+                            frameBorder: '0',
+                            allow: 'encrypted-media',
+                            style: { borderRadius: 8 }
+                        })}
+                        
+                        {mediaType === 'youtube' && React.createElement('iframe', {
+                            src: `https://www.youtube.com/embed/${embedId}`,
+                            width: '100%',
+                            height: '200',
+                            frameBorder: '0',
+                            allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture',
+                            allowFullScreen: true,
+                            style: { borderRadius: 8 }
+                        })}
+                        
+                        {mediaType === 'tiktok' && (
+                            <View style={{ 
+                                padding: 20, 
+                                borderRadius: 8, 
+                                borderWidth: 1, 
+                                borderColor: 'rgba(244,228,166,0.3)',
+                                backgroundColor: 'rgba(244,228,166,0.05)',
+                                alignItems: 'center'
+                            }}>
+                                <Text style={{ fontFamily: 'Space Grotesk', fontSize: 12, color: '#f4e4a6', textAlign: 'center' }}>
+                                    TikTok Embed Preview
+                                </Text>
+                                <Text style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: '#666', textAlign: 'center', marginTop: 4 }}>
+                                    ID: {embedId}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
+
+                {!embedId && mediaUrl && (
+                    <View style={{ 
+                        padding: 20, 
+                        borderRadius: 8, 
+                        borderWidth: 1, 
+                        borderColor: 'rgba(244,228,166,0.3)',
+                        backgroundColor: 'rgba(244,228,166,0.05)',
+                        alignItems: 'center'
+                    }}>
+                        <Text style={{ fontFamily: 'Space Grotesk', fontSize: 12, color: '#666', textAlign: 'center' }}>
+                            URL not recognized. Try a Spotify track, YouTube video, or TikTok link.
+                        </Text>
+                    </View>
+                )}
+            </View>
+            <Text style={s.playHint}>← paste URLs or try samples above</Text>
+        </View>
+    );
+};
+const SpacesPlayground = ({ step }: { step: number }) => {
+    const [currentSpace, setCurrentSpace] = useState('mind');
+    const [rippleVisible, setRippleVisible] = useState(false);
+    const rippleScale = useSharedValue(0);
+
+    const switchSpace = (space: string) => {
+        setRippleVisible(true);
+        rippleScale.value = 0;
+        rippleScale.value = withTiming(1, { duration: 600 }, () => {
+            runOnJS(() => setRippleVisible(false))();
+        });
+        
+        setTimeout(() => {
+            setCurrentSpace(space);
+        }, 300);
+    };
+
+    const rippleStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: rippleScale.value }],
+        opacity: 1 - rippleScale.value,
+    }));
+
+    const spaces = ['mind', 'matter', 'confluence'];
+
+    return (
+        <View style={s.playground}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <View style={{ flexDirection: 'row', gap: 16, marginBottom: 20 }}>
+                    {spaces.map(space => (
+                        <TouchableOpacity
+                            key={space}
+                            onPress={() => switchSpace(space)}
+                            style={{
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                                borderRadius: 8,
+                                borderWidth: 1,
+                                borderColor: currentSpace === space ? '#f4e4a6' : 'rgba(244,228,166,0.3)',
+                                backgroundColor: currentSpace === space ? 'rgba(244,228,166,0.2)' : 'transparent',
+                            }}
+                        >
+                            <Text style={{
+                                fontFamily: 'Space Grotesk',
+                                fontSize: 12,
+                                color: currentSpace === space ? '#f4e4a6' : '#999',
+                            }}>
+                                {space}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+                
+                <Text style={{ fontFamily: 'Space Grotesk', fontSize: 16, color: '#f4e4a6', marginBottom: 8 }}>
+                    Current: {currentSpace}
+                </Text>
+                
+                {rippleVisible && (
+                    <Animated.View
+                        style={[
+                            {
+                                position: 'absolute',
+                                width: 100,
+                                height: 100,
+                                borderRadius: 50,
+                                borderWidth: 2,
+                                borderColor: '#f4e4a6',
+                            },
+                            rippleStyle,
+                        ]}
+                    />
+                )}
+            </View>
+            <Text style={s.playHint}>← click spaces to see transition effects</Text>
+        </View>
+    );
+};
+
+// Simple node playground (just physics, no recenter)
+const NodePlayground = ({ step }: { step: number }) => {
+    const nodes = [
+        { label: 'idea', initX: -90, initY: -30 },
+        { label: 'work', initX: 40, initY: 20 },
+        { label: 'art', initX: -20, initY: 80 },
+    ];
+
+    return (
+        <View style={s.playground}>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+                <View style={s.playCanvas}>
+                    {nodes.map((node, i) => (
+                        <PlayNode
+                            key={node.label}
+                            label={node.label}
+                            initX={node.initX}
+                            initY={node.initY}
+                            accent="#f4e4a6"
+                        />
+                    ))}
+                    
+                    <Text style={s.playHint}>← fling any node to feel physics</Text>
+                </View>
+            </GestureHandlerRootView>
+        </View>
+    );
+};
+
+// Recenter playground (enhanced node playground)
+const RecenterPlayground = ({ step }: { step: number }) => {
+    const [recenterTrigger, setRecenterTrigger] = useState(0);
+    
+    const nodes = [
+        { label: 'idea', initX: -90, initY: -30 },
+        { label: 'work', initX: 40, initY: 20 },
+        { label: 'art', initX: -20, initY: 80 },
+    ];
+
+    return (
+        <View style={{ marginBottom: 16 }}>
+            {/* Reference image */}
+            {Platform.OS === 'web' && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                    <Text style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: '#666' }}>Reference:</Text>
+                    {React.createElement('img', {
+                        src: '/pain.webp',
+                        style: { width: 40, height: 40, borderRadius: 4, objectFit: 'cover' }
+                    })}
+                    <Text style={{ fontFamily: 'Space Grotesk', fontSize: 9, color: '#666', flex: 1 }}>
+                        Background image used in recenter demo
+                    </Text>
+                </View>
+            )}
+            
+            <View style={[s.playground, { 
+                backgroundColor: 'rgba(0,0,0,0.6)',
+                ...(Platform.OS === 'web' && {
+                    backgroundImage: 'url(/pain.webp)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                })
+            }]}>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                    <View style={s.playCanvas}>
+                        {nodes.map((node, i) => (
+                            <PlayNode
+                                key={node.label}
+                                label={node.label}
+                                initX={node.initX}
+                                initY={node.initY}
+                                accent="#f4e4a6"
+                                recenterTrigger={recenterTrigger}
+                            />
+                        ))}
+                        
+                        <TouchableOpacity
+                            onPress={() => setRecenterTrigger((t: number) => t + 1)}
+                            style={{
+                                position: 'absolute',
+                                bottom: 20,
+                                alignSelf: 'center',
+                                width: 40,
+                                height: 40,
+                                borderRadius: 20,
+                                borderWidth: 2,
+                                borderColor: '#f4e4a6',
+                                backgroundColor: 'rgba(244,228,166,0.2)',
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                shadowColor: '#f4e4a6',
+                                shadowOpacity: 0.5,
+                                shadowRadius: 10,
+                                shadowOffset: { width: 0, height: 0 },
+                            }}
+                        >
+                            <Text style={{ color: '#f4e4a6', fontSize: 18, fontWeight: 'bold' }}>◎</Text>
+                        </TouchableOpacity>
+                        
+                        <Text style={[s.playHint, { 
+                            bottom: 70, 
+                            color: '#f4e4a6',
+                            textShadow: '0 0 10px rgba(0,0,0,0.8)',
+                        }]}>
+                            ← drag nodes, then press ◎ to recenter
+                        </Text>
+                    </View>
+                </GestureHandlerRootView>
+            </View>
+        </View>
+    );
+};
+
+// Capture playground
+const CapturePlayground = ({ step }: { step: number }) => {
+    const [captureOpen, setCaptureOpen] = useState(false);
+    const [text, setText] = useState('');
+    const translateY = useSharedValue(100);
+
+    useEffect(() => {
+        translateY.value = withSpring(captureOpen ? 0 : 100);
+    }, [captureOpen]);
+
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            const tag = (e.target as any)?.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+            
+            if (e.key === '/') {
+                e.preventDefault();
+                setCaptureOpen(v => !v);
+            }
+        };
+        
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
+
+    const panelStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: translateY.value }],
+    }));
+
+    return (
+        <View style={s.playground}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+                <Text style={{ fontFamily: 'Space Grotesk', fontSize: 14, color: '#f4e4a6', marginBottom: 20 }}>
+                    Press "/" to toggle capture panel
+                </Text>
+                
+                <TextInput
+                    style={{
+                        borderWidth: 1,
+                        borderColor: 'rgba(244,228,166,0.3)',
+                        borderRadius: 8,
+                        padding: 12,
+                        width: 200,
+                        fontFamily: 'Space Grotesk',
+                        fontSize: 12,
+                        color: '#f4e4a6',
+                        backgroundColor: 'rgba(244,228,166,0.05)',
+                    }}
+                    placeholder="Try typing here..."
+                    placeholderTextColor="#666"
+                    value={text}
+                    onChangeText={setText}
+                />
+                
+                <Animated.View
+                    style={[
+                        {
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 20,
+                            right: 20,
+                            height: 80,
+                            backgroundColor: 'rgba(244,228,166,0.1)',
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            borderColor: 'rgba(244,228,166,0.3)',
+                            padding: 16,
+                        },
+                        panelStyle,
+                    ]}
+                >
+                    <Text style={{ fontFamily: 'Space Grotesk', fontSize: 12, color: '#f4e4a6' }}>
+                        Quick Capture Panel
+                    </Text>
+                    <Text style={{ fontFamily: 'Space Grotesk', fontSize: 10, color: '#666', marginTop: 4 }}>
+                        This would be the capture interface
+                    </Text>
+                </Animated.View>
+            </View>
+            <Text style={s.playHint}>← press "/" (not while typing in input)</Text>
+        </View>
+    );
+};
+
+// Enhanced PlayNode with optional recenter support
+const PlayNode = ({ label, initX, initY, accent, recenterTrigger }: {
+    label: string; initX: number; initY: number; accent: string; recenterTrigger?: number;
 }) => {
     const x = useSharedValue(initX);
     const y = useSharedValue(initY);
     const sc = useSharedValue(1);
+
+    // Recenter effect (only if recenterTrigger is provided)
+    useEffect(() => {
+        if (recenterTrigger === undefined || recenterTrigger === 0) return;
+        cancelAnimation(x);
+        cancelAnimation(y);
+        x.value = withSpring(initX, { damping: 14, stiffness: 90, mass: 1.2 });
+        y.value = withSpring(initY, { damping: 14, stiffness: 90 });
+    }, [recenterTrigger, initX, initY]);
 
     const pan = Gesture.Pan()
         .onBegin(() => { cancelAnimation(x); cancelAnimation(y); sc.value = withSpring(1.12); })
@@ -414,19 +1094,6 @@ const PlayNode = ({ label, initX, initY, accent }: {
         </GestureDetector>
     );
 };
-
-const NodePlayground = ({ step }: { step: number }) => (
-    <View style={s.playground}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-            <View style={s.playCanvas}>
-                <PlayNode label="idea" initX={-90} initY={-30} accent="#C792EA" />
-                <PlayNode label="work"  initX={40}  initY={20}  accent="#82AAFF" />
-                <PlayNode label="art"   initX={-20} initY={80}  accent="#C3E88D" />
-                <Text style={s.playHint}>← fling any node to feel physics</Text>
-            </View>
-        </GestureHandlerRootView>
-    </View>
-);
 
 // ─── Main Overlay ─────────────────────────────────────────────────────────────
 
@@ -474,15 +1141,8 @@ export const DevModeOverlay = ({
 
     return (
         <View style={[StyleSheet.absoluteFillObject, s.root]}>
-            {/* SVG spotlight */}
-            {current.spot && (
-                <SpotlightSVG spot={current.spot} sw={screenW} sh={screenH} />
-            )}
-
-            {/* Dark fill when no spotlight (playground/full screen) */}
-            {!current.spot && (
-                <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.82)', zIndex: 151 }]} />
-            )}
+            {/* Simple dark overlay */}
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.75)', zIndex: 150 }]} />
 
             {/* Tap outside to close (only for non-playground steps) */}
             {!isFull && (
@@ -513,8 +1173,18 @@ export const DevModeOverlay = ({
                     <Text style={s.sub}>{current.sub}</Text>
                     <Text style={s.body}>{current.body}</Text>
 
-                    {/* Playground for node physics */}
-                    {current.isPlayground && <NodePlayground step={step} />}
+                    {/* Different playgrounds based on step */}
+                    {current.isPlayground && (
+                        <>
+                            {current.id === 'dots' && <ParticlePlayground step={step} />}
+                            {current.id === 'chips' && <ChipsPlayground step={step} />}
+                            {current.id === 'spaces' && <SpacesPlayground step={step} />}
+                            {current.id === 'media' && <MediaPlayground step={step} />}
+                            {current.id === 'nodes' && <NodePlayground step={step} />}
+                            {current.id === 'recenter' && <RecenterPlayground step={step} />}
+                            {current.id === 'capture' && <CapturePlayground step={step} />}
+                        </>
+                    )}
 
                     {/* Code */}
                     <CodeBlock code={current.code} hotLines={current.hotLines} step={step} />
@@ -543,9 +1213,6 @@ export const DevModeOverlay = ({
     );
 };
 
-// Need runOnJS from reanimated
-import { runOnJS } from 'react-native-reanimated';
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
@@ -558,12 +1225,12 @@ const s = StyleSheet.create({
 
     // Card — small corner version (most steps)
     card: {
-        backgroundColor: '#0c0b1a',
+        backgroundColor: '#1a1408', // Dark gold background
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: 'rgba(124,58,237,0.4)',
+        borderColor: 'rgba(244,228,166,0.4)', // Gold border
         zIndex: 210,
-        shadowColor: '#7c3aed',
+        shadowColor: '#f4e4a6', // Gold shadow
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.45,
         shadowRadius: 48,
@@ -585,24 +1252,24 @@ const s = StyleSheet.create({
 
     hdr: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
     badge: {
-        backgroundColor: 'rgba(124,58,237,0.2)',
+        backgroundColor: 'rgba(244,228,166,0.2)', // Gold background
         borderRadius: 4, paddingHorizontal: 8, paddingVertical: 2,
-        borderWidth: 1, borderColor: '#7c3aed', marginRight: 'auto',
+        borderWidth: 1, borderColor: '#f4e4a6', marginRight: 'auto', // Gold border
     },
     badgeTxt: {
         fontFamily: 'Space Grotesk', fontSize: 9,
-        letterSpacing: 1.8, color: '#a78bfa', textTransform: 'uppercase',
+        letterSpacing: 1.8, color: '#f4e4a6', textTransform: 'uppercase', // Gold text
     },
     stepTxt: { fontFamily: 'Space Grotesk', fontSize: 10, color: '#3d3d6a', marginRight: 14 },
     closeTxt: { fontFamily: 'Space Grotesk', fontSize: 22, color: '#3d3d6a', lineHeight: 26 },
 
     progBg: { height: 2, backgroundColor: '#1a1a2e', borderRadius: 1, marginBottom: 18, overflow: 'hidden' },
-    progFill: { height: 2, backgroundColor: '#7c3aed', borderRadius: 1 },
+    progFill: { height: 2, backgroundColor: '#f4e4a6', borderRadius: 1 }, // Gold progress
 
     title: { fontFamily: 'Space Grotesk', fontSize: 20, fontWeight: '700', color: '#f0f0f0', marginBottom: 4 },
     sub: {
         fontFamily: 'Space Grotesk', fontSize: 11, letterSpacing: 0.5,
-        color: '#7c3aed', backgroundColor: 'rgba(124,58,237,0.1)',
+        color: '#f4e4a6', backgroundColor: 'rgba(244,228,166,0.1)', // Gold
         paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4,
         alignSelf: 'flex-start', marginBottom: 12,
     },
@@ -614,7 +1281,7 @@ const s = StyleSheet.create({
         borderWidth: 1, borderColor: '#1e1e3a', alignItems: 'center',
     },
     navBtnDisabled: { opacity: 0.25 },
-    navBtnPrimary: { backgroundColor: '#a78bfa', borderColor: '#a78bfa' },
+    navBtnPrimary: { backgroundColor: '#f4e4a6', borderColor: '#f4e4a6' }, // Gold primary button
     navTxt: { fontFamily: 'Space Grotesk', fontSize: 12, letterSpacing: 0.5, color: '#666' },
 
     // Code fallback (non-web)
@@ -627,7 +1294,7 @@ const s = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.4)',
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: 'rgba(124,58,237,0.2)',
+        borderColor: 'rgba(244,228,166,0.2)', // Gold border
         marginBottom: 16,
         overflow: 'hidden',
     },

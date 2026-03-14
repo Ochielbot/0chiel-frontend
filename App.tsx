@@ -1248,7 +1248,7 @@ const FloatingNode = ({
                         {thought.media?.url && (
                             <View style={styles.collageVideoMobile}>
                                 <Text style={[styles.nodeMediaHint, { color: nodeText, opacity: 0.6 }]}>
-                                    video: tap to open ↗
+                                    video ↗
                                 </Text>
                             </View>
                         )}
@@ -1301,7 +1301,7 @@ const FloatingNode = ({
                         {(thought.media.type === 'tiktok' || thought.media.type === 'video' ||
                             thought.media.type === 'wikipedia' || thought.media.type === 'iframe') && (
                                 <Text style={[styles.nodeMediaHint, { color: nodeText, opacity: 0.6 }]}>
-                                    tap to open ↗
+                                    media ↗
                                 </Text>
                             )}
                     </View>
@@ -1309,7 +1309,7 @@ const FloatingNode = ({
 
                 {isArtifact && (
                     <Text style={[styles.nodeMediaHint, { color: nodeText, opacity: 0.55, marginTop: 4 }]}>
-                        tap to open ↗
+                        project ↗
                     </Text>
                 )}
             </Animated.View>
@@ -2317,8 +2317,8 @@ const CapturePanel = ({
         ]}>
             <View style={styles.captureTitleRow}>
                 <Text style={[styles.captureTitle, { color: fg }]}>
-                    {userRole === 'public' ? 'add to void' : `create node · ${currentSpace}`}{'  '}
-                    <Text style={{ opacity: 0.35, fontSize: 10 }}>/ to open · esc to close</Text>
+                    {userRole === 'public' ? 'add to void' : `create node · ${currentSpace}`}
+                    <Text style={{ opacity: 0.35, fontSize: 10 }}> / to open · esc to close</Text>
                 </Text>
                 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -2604,11 +2604,11 @@ const CurrentlyWidget = ({
     const muted = currentSpace === 'matter' ? '#999' : '#555';
 
     // ─ Desktop card logic
-    const desktopHeight = useSharedValue(open ? 280 : 48);
+    const desktopHeight = useSharedValue(open ? 320 : 48); // Increased height
     const desktopOpacity = useSharedValue(open ? 1 : 0);
     useEffect(() => {
         if (isMobile) return;
-        desktopHeight.value = withSpring(open ? 280 : 48, { damping: 20, stiffness: 140 });
+        desktopHeight.value = withSpring(open ? 320 : 48, { damping: 20, stiffness: 140 }); // Increased height
         desktopOpacity.value = withTiming(open ? 1 : 0, { duration: 220 });
     }, [open, isMobile]);
     const desktopBodyStyle = useAnimatedStyle(() => ({ opacity: desktopOpacity.value }));
@@ -2704,35 +2704,37 @@ const CurrentlyWidget = ({
                 <Text style={[styles.currentlyToggle, { color: muted }]}>{open ? '−' : '+'}</Text>
             </TouchableOpacity>
             <Animated.View style={[desktopBodyStyle, { flex: 1 }]}>
-                <View style={styles.currentlySection}>
-                    <Text style={[styles.currentlyLabel, { color: muted }]}>🎵 on repeat</Text>
-                    {Platform.OS === 'web' && open && (
-                        <iframe
-                            style={{ borderRadius: 8, marginTop: 6 }}
-                            src="https://open.spotify.com/embed/track/5LO3M8pfuprpwNN1p3tuxW?utm_source=generator&theme=0"
-                            width="100%" height="152" frameBorder="0"
-                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                            loading="lazy"
-                        />
-                    )}
-                </View>
-                <View style={[styles.currentlyDivider, { backgroundColor: border }]} />
-                <View style={styles.currentlySection}>
-                    <View style={styles.currentlyRow}>
-                        <Text style={[styles.currentlyLabel, { color: muted }]}>📚</Text>
-                        <Text style={[styles.currentlyValue, { color: fg }]}>Kafka on the Shore</Text>
+                <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                    <View style={styles.currentlySection}>
+                        <Text style={[styles.currentlyLabel, { color: muted }]}>🎵 on repeat</Text>
+                        {Platform.OS === 'web' && open && (
+                            <iframe
+                                style={{ borderRadius: 8, marginTop: 6 }}
+                                src="https://open.spotify.com/embed/track/5LO3M8pfuprpwNN1p3tuxW?utm_source=generator&theme=0"
+                                width="100%" height="152" frameBorder="0"
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                            />
+                        )}
                     </View>
-                    <View style={styles.currentlyRow}>
-                        <Text style={[styles.currentlyLabel, { color: muted }]}>🎸</Text>
-                        <Text style={[styles.currentlyValue, { color: fg }]}>Fast Car</Text>
+                    <View style={[styles.currentlyDivider, { backgroundColor: border }]} />
+                    <View style={styles.currentlySection}>
+                        <View style={styles.currentlyRow}>
+                            <Text style={[styles.currentlyLabel, { color: muted }]}>📚</Text>
+                            <Text style={[styles.currentlyValue, { color: fg }]}>Kafka on the Shore</Text>
+                        </View>
+                        <View style={styles.currentlyRow}>
+                            <Text style={[styles.currentlyLabel, { color: muted }]}>🎸</Text>
+                            <Text style={[styles.currentlyValue, { color: fg }]}>Fast Car</Text>
+                        </View>
                     </View>
-                </View>
-                <View style={[styles.currentlyDivider, { backgroundColor: border }]} />
-                <View style={styles.currentlySection}>
-                    <Text style={[styles.currentlyLabel, { color: muted }]}>🛠 building</Text>
-                    <Text style={[styles.currentlyProject, { color: fg }]}>— overhauling qpid tech sites</Text>
-                    <Text style={[styles.currentlyProject, { color: fg }]}>— bookmarked beta prep</Text>
-                </View>
+                    <View style={[styles.currentlyDivider, { backgroundColor: border }]} />
+                    <View style={styles.currentlySection}>
+                        <Text style={[styles.currentlyLabel, { color: muted }]}>🛠 building</Text>
+                        <Text style={[styles.currentlyProject, { color: fg }]}>— overhauling qpid tech sites</Text>
+                        <Text style={[styles.currentlyProject, { color: fg }]}>— bookmarked beta prep</Text>
+                    </View>
+                </ScrollView>
             </Animated.View>
         </Animated.View>
     );
@@ -2800,12 +2802,20 @@ export default function App() {
         checkAuth();
     }, []);
 
+    // Check if there are any thoughts in void space
+    const hasVoidThoughts = thoughts.some(t => t.space === 'void');
+
     // Load thoughts from backend
     const loadThoughts = useCallback(async () => {
         try {
             setLoading(true);
             const data = await api.getThoughts();
             setThoughts(data);
+            
+            // Auto-unlock void if there are thoughts in it
+            if (data.some(t => t.space === 'void')) {
+                setVoidUnlocked(true);
+            }
         } catch (error) {
             console.error('Error loading thoughts:', error);
             // Fallback to static data if backend is not available
@@ -2980,16 +2990,12 @@ export default function App() {
         mouseY.value = e.nativeEvent.offsetY ?? e.nativeEvent.pageY;
     };
 
-    // Secret void access - triple click on wordmark
+    // Secret void access - triple click on wordmark (disabled - only show when has content)
     const [clickCount, setClickCount] = useState(0);
     const handleWordmarkPress = () => {
+        // Removed triple-click unlock - void only shows when it has content
         setClickCount(prev => prev + 1);
         setTimeout(() => setClickCount(0), 1000);
-
-        if (clickCount === 2) { // Third click
-            setVoidUnlocked(true);
-            setCurrentSpace('void');
-        }
     };
 
     return (
@@ -3037,7 +3043,7 @@ export default function App() {
                                     <Text style={[styles.navSpace, spaceTabStyle(s)]}>{s}</Text>
                                 </TouchableOpacity>
                             ))}
-                            {voidUnlocked && (
+                            {hasVoidThoughts && (
                                 <TouchableOpacity onPress={() => switchSpace('void')}>
                                     <Text style={[styles.navSpace, spaceTabStyle('void')]}>void</Text>
                                 </TouchableOpacity>
@@ -3089,8 +3095,15 @@ export default function App() {
                         {/* Dev mode chip — special accent */}
                         <TouchableOpacity
                             onPress={() => setDevMode(true)}
-                            style={[styles.filterChip, styles.devChip]}>
-                            <Text style={styles.devChipText}>✱ how this works</Text>
+                            style={[
+                                styles.filterChip, 
+                                styles.devChip,
+                                currentSpace === 'matter' && styles.devChipMatter
+                            ]}>
+                            <Text style={[
+                                styles.devChipText,
+                                currentSpace === 'matter' && styles.devChipTextMatter
+                            ]}>✱ how this works</Text>
                         </TouchableOpacity>
                     </ScrollView>
                 </View>
@@ -3741,7 +3754,7 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 36,
         left: 32,
-        width: 260,
+        width: 320, // Increased from 260 to accommodate Spotify embed
         borderRadius: 12,
         borderWidth: 1,
         zIndex: 30,
@@ -4062,16 +4075,23 @@ const styles = StyleSheet.create({
 
     // Dev chip (accent color in the chip row)
     devChip: {
-        backgroundColor: 'rgba(124,58,237,0.12)',
-        borderColor: 'rgba(124,58,237,0.45)',
+        backgroundColor: 'rgba(244,228,166,0.12)', // Gold instead of purple
+        borderColor: 'rgba(244,228,166,0.45)', // Gold border
         borderWidth: 1,
     },
     devChipText: {
         fontFamily: 'Space Grotesk',
         fontSize: 11,
         letterSpacing: 1,
-        color: '#a78bfa',
+        color: '#f4e4a6', // Gold text
         textTransform: 'lowercase',
+    },
+    devChipMatter: {
+        backgroundColor: 'rgba(244,228,166,0.25)', // Darker gold for matter
+        borderColor: 'rgba(244,228,166,0.7)', // Stronger border
+    },
+    devChipTextMatter: {
+        color: '#d4c486', // Darker gold text for matter
     },
 
     // Dev mode overlay
