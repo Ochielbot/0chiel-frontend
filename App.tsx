@@ -1537,17 +1537,53 @@ const ContentOverlay = ({
     thought,
     currentSpace,
     onClose,
+    isAdmin,
+    onDelete,
+    onEdit,
 }: {
     thought: Thought | null;
     currentSpace: Space;
     onClose: () => void;
+    isAdmin?: boolean;
+    onDelete?: (id: string) => void;
+    onEdit?: (thought: Thought) => void;
 }) => {
     const opacity = useSharedValue(0);
     const translateY = useSharedValue(40);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedBody, setEditedBody] = useState('');
 
     useEffect(() => {
         if (thought) {
             opacity.value = withTiming(1, { duration: 350 });
+            translateY.value = withSpring(0, { damping: 18, stiffness: 150 });
+            setEditedBody(thought.body || '');
+            setIsEditing(false);
+        } else {
+            opacity.value = withTiming(0, { duration: 200 });
+            translateY.value = withTiming(30, { duration: 200 });
+        }
+    }, [thought]);
+
+    const handleSaveEdit = async () => {
+        if (!thought || !onEdit) return;
+        onEdit({ ...thought, body: editedBody });
+        setIsEditing(false);
+    };
+
+    const handleDelete = () => {
+        if (!thought || !onDelete) return;
+        if (Platform.OS === 'web') {
+            const w = global as any;
+            if (w.confirm?.(`Delete "${thought.label}"?`)) {
+                onDelete(thought.id);
+                onClose();
+            }
+        } else {
+            onDelete(thought.id);
+            onClose();
+        }
+    };
             translateY.value = withSpring(0, { damping: 18, stiffness: 150 });
         } else {
             opacity.value = withTiming(0, { duration: 200 });
@@ -1776,16 +1812,72 @@ const ContentOverlay = ({
     return (
         <Animated.View style={[styles.essayOverlay, overlayStyle, { backgroundColor: bg, borderColor: border }]}>
             <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Close */}
-                <TouchableOpacity 
-                    style={styles.essayClose} 
-                    onPress={onClose}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                >
-                    <Text style={[styles.essayCloseText, { color: fgMuted }]}>✕ close</Text>
-                </TouchableOpacity>
+                {/* Close and Admin Controls */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <TouchableOpacity 
+                        style={styles.essayClose} 
+                        onPress={onClose}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                        <Text style={[styles.essayCloseText, { color: fgMuted }]}>✕ close</Text>
+                    </TouchableOpacity>
+                    
+                    {isAdmin && (
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            {!isEditing ? (
+                                <>
+                                    <TouchableOpacity 
+                                        onPress={() => setIsEditing(true)}
+                                        style={[styles.adminButton, { borderColor: ACCENT_COLOR }]}
+                                    >
+                                        <Text style={[styles.adminButtonText, { color: ACCENT_COLOR }]}>edit</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity 
+                                        onPress={handleDelete}
+                                        style={[styles.adminButton, { borderColor: '#ff6b6b' }]}
+                                    >
+                                        <Text style={[styles.adminButtonText, { color: '#ff6b6b' }]}>delete</Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : (
+                                <>
+                                    <TouchableOpacity 
+                                        onPress={() => setIsEditing(false)}
+                                        style={[styles.adminButton, { borderColor: fgMuted }]}
+                                    >
+                                        <Text style={[styles.adminButtonText, { color: fgMuted }]}>cancel</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity 
+                                        onPress={handleSaveEdit}
+                                        style={[styles.adminButton, { borderColor: ACCENT_COLOR, backgroundColor: ACCENT_COLOR }]}
+                                    >
+                                        <Text style={[styles.adminButtonText, { color: '#000' }]}>save</Text>
+                                    </TouchableOpacity>
+                                </>
+                            )}
+                        </View>
+                    )}
+                </View>
 
-                {renderContent()}
+                {isEditing ? (
+                    <View>
+                        <Text style={[styles.essayKind, { color: fgMuted }]}>
+                            {thought?.kind} · {thought?.space}
+                        </Text>
+                        <Text style={[styles.essayTitle, { color: fg }]}>{thought?.label}</Text>
+                        <View style={[styles.essayRule, { backgroundColor: border }]} />
+                        <TextInput
+                            style={[styles.editTextArea, { color: fg, borderColor: border }]}
+                            value={editedBody}
+                            onChangeText={setEditedBody}
+                            multiline
+                            placeholder="Edit content..."
+                            placeholderTextColor={fgMuted}
+                        />
+                    </View>
+                ) : (
+                    renderContent()
+                )}
             </ScrollView>
         </Animated.View>
     );
@@ -2969,6 +3061,25 @@ export default function App() {
         });
     }, []);
 
+    const handleDeleteNode = useCallback(async (id: string) => {
+        try {
+            await api.deleteThought(id);
+            setThoughts(prev => prev.filter(t => t.id !== id));
+        } catch (error) {
+            console.error('Failed to delete node:', error);
+        }
+    }, []);
+
+    const handleEditNode = useCallback(async (thought: Thought) => {
+        try {
+            await api.updateThought(thought.id, { body: thought.body });
+            setThoughts(prev => prev.map(t => t.id === thought.id ? thought : t));
+            setExpandedThought(thought);
+        } catch (error) {
+            console.error('Failed to edit node:', error);
+        }
+    }, []);
+
     const toggleCapture = () => {
         const next = !captureOpen;
         setCaptureOpen(next);
@@ -3158,6 +3269,9 @@ export default function App() {
                         thought={expandedThought}
                         currentSpace={currentSpace}
                         onClose={() => setExpandedThought(null)}
+                        isAdmin={isAuthenticated && userRole === 'admin'}
+                        onDelete={handleDeleteNode}
+                        onEdit={handleEditNode}
                     />
                 )}
 
@@ -4306,3 +4420,26 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
 });
+
+    // Admin button styles
+    adminButton: {
+        borderWidth: 1,
+        borderRadius: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    adminButtonText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 11,
+        letterSpacing: 0.5,
+    },
+    editTextArea: {
+        fontFamily: 'Cormorant Garamond',
+        fontSize: 18,
+        lineHeight: 28,
+        minHeight: 200,
+        borderWidth: 1,
+        borderRadius: 4,
+        padding: 12,
+        marginTop: 12,
+    },
