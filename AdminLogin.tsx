@@ -3,9 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-nativ
 
 // Type declarations for web-only APIs
 declare const window: any;
-declare const navigator: any;
-declare const atob: any;
-declare const btoa: any;
+declare const localStorage: any;
 
 interface AdminLoginProps {
     onLogin: (sessionId: string) => void;
@@ -15,9 +13,9 @@ interface AdminLoginProps {
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, currentSpace }) => {
     const username = 'robert'; // Fixed username, not editable
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const [passkeyAvailable, setPasskeyAvailable] = useState(false);
 
     const API_BASE = process.env.REACT_APP_API_URL || 'https://0chiel-backend-production.up.railway.app/api';
 
@@ -26,237 +24,36 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
     const border = currentSpace === 'matter' ? '#ddd' : '#222';
     const placeholder = currentSpace === 'matter' ? '#aaa' : '#555';
 
-    // Check if passkey is available
-    React.useEffect(() => {
-        if (typeof window !== 'undefined' && typeof (window as any).PublicKeyCredential !== 'undefined') {
-            setPasskeyAvailable(true);
-        } else {
-            setError('Passkey authentication not supported in this browser');
+    const handleLogin = async () => {
+        if (!password.trim()) {
+            setError('Password required');
+            return;
         }
-    }, []);
 
-    const registerPasskey = async (username: string) => {
-        try {
-            // Begin registration
-            const beginResponse = await fetch(`${API_BASE}/passkey/register/begin`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username })
-            });
-
-            if (!beginResponse.ok) {
-                console.error('Failed to begin passkey registration');
-                return;
-            }
-
-            const options = await beginResponse.json();
-
-            // Create credential
-            const credential = await (navigator as any).credentials.create({
-                publicKey: {
-                    challenge: Uint8Array.from(atob(options.challenge.replace(/-/g, '+').replace(/_/g, '/')), (c: any) => (c as string).charCodeAt(0)),
-                    rp: options.rp,
-                    user: {
-                        id: Uint8Array.from(options.user.id, (c: any) => (c as string).charCodeAt(0)),
-                        name: options.user.name,
-                        displayName: options.user.displayName
-                    },
-                    pubKeyCredParams: options.pubKeyCredParams,
-                    timeout: options.timeout,
-                    attestation: options.attestation,
-                    authenticatorSelection: options.authenticatorSelection
-                }
-            });
-
-            if (!credential) {
-                console.log('Passkey registration cancelled');
-                return;
-            }
-
-            // Complete registration
-            const completeResponse = await fetch(`${API_BASE}/passkey/register/complete`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username,
-                    credential: {
-                        id: credential.id,
-                        rawId: btoa(String.fromCharCode(...new Uint8Array((credential as any).rawId))),
-                        type: credential.type,
-                        transports: (credential as any).response?.getTransports?.() || ['internal']
-                    }
-                })
-            });
-
-            if (completeResponse.ok) {
-                console.log('Passkey registered successfully');
-            }
-        } catch (error) {
-            console.error('Passkey registration error:', error);
-        }
-    };
-
-    const handlePasskeyLogin = async () => {
         setLoading(true);
         setError('');
 
         try {
-            // Begin authentication
-            const beginResponse = await fetch(`${API_BASE}/passkey/authenticate/begin`, {
+            const response = await fetch(`${API_BASE}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username })
+                body: JSON.stringify({ username, password })
             });
 
-            if (!beginResponse.ok) {
-                const data = await beginResponse.json();
-                if (beginResponse.status === 404) {
-                    setError('Passkey not registered. Click "Register Passkey" to set up authentication.');
-                } else {
-                    setError(data.error || 'Authentication failed');
-                }
-                setLoading(false);
-                return;
-            }
+            const data = await response.json();
 
-            const options = await beginResponse.json();
-
-            // Get credential from authenticator
-            const assertion = await (navigator as any).credentials.get({
-                publicKey: {
-                    challenge: Uint8Array.from(atob(options.challenge.replace(/-/g, '+').replace(/_/g, '/')), (c: any) => (c as string).charCodeAt(0)),
-                    allowCredentials: options.allowCredentials.map((cred: any) => ({
-                        type: cred.type,
-                        id: Uint8Array.from(atob(cred.id.replace(/-/g, '+').replace(/_/g, '/')), (c: any) => (c as string).charCodeAt(0)),
-                        transports: cred.transports
-                    })),
-                    timeout: options.timeout,
-                    userVerification: options.userVerification,
-                    rpId: options.rpId
-                }
-            });
-
-            if (!assertion) {
-                setError('Authentication cancelled');
-                setLoading(false);
-                return;
-            }
-
-            // Complete authentication
-            const completeResponse = await fetch(`${API_BASE}/passkey/authenticate/complete`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    username,
-                    assertion: {
-                        id: assertion.id,
-                        rawId: btoa(String.fromCharCode(...new Uint8Array(assertion.rawId))),
-                        type: assertion.type
-                    }
-                })
-            });
-
-            const data = await completeResponse.json();
-
-            if (completeResponse.ok) {
+            if (response.ok) {
                 localStorage.setItem('ochiel_session', data.sessionId);
                 onLogin(data.sessionId);
             } else {
-                setError(data.error || 'Authentication failed');
+                setError(data.error || 'Login failed');
             }
         } catch (error) {
-            console.error('Passkey error:', error);
-            setError('Passkey authentication failed. Please try again or register a passkey first.');
+            console.error('Login error:', error);
+            setError('Login failed. Please try again.');
         } finally {
             setLoading(false);
         }
-    };
-
-    const handlePasskeyRegistration = async () => {
-        setLoading(true);
-        setError('');
-
-        try {
-            // Begin registration
-            const beginResponse = await fetch(`${API_BASE}/passkey/register/begin`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username })
-            });
-
-            if (!beginResponse.ok) {
-                const data = await beginResponse.json();
-                setError(data.error || 'Registration failed');
-                setLoading(false);
-                return;
-            }
-
-            const options = await beginResponse.json();
-
-            // Create credential
-            const credential = await (navigator as any).credentials.create({
-                publicKey: {
-                    challenge: Uint8Array.from(atob(options.challenge.replace(/-/g, '+').replace(/_/g, '/')), (c: any) => (c as string).charCodeAt(0)),
-                    rp: options.rp,
-                    user: {
-                        id: Uint8Array.from(options.user.id, (c: any) => (c as string).charCodeAt(0)),
-                        name: options.user.name,
-                        displayName: options.user.displayName
-                    },
-                    pubKeyCredParams: options.pubKeyCredParams,
-                    timeout: options.timeout,
-                    attestation: options.attestation,
-                    authenticatorSelection: options.authenticatorSelection
-                }
-            });
-
-            if (!credential) {
-                setError('Passkey registration cancelled');
-                setLoading(false);
-                return;
-            }
-
-            // Complete registration
-            const completeResponse = await fetch(`${API_BASE}/passkey/register/complete`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username,
-                    credential: {
-                        id: credential.id,
-                        rawId: btoa(String.fromCharCode(...new Uint8Array((credential as any).rawId))),
-                        type: credential.type,
-                        transports: (credential as any).response?.getTransports?.() || ['internal']
-                    }
-                })
-            });
-
-            const data = await completeResponse.json();
-
-            if (completeResponse.ok) {
-                setError('');
-                // Show success message briefly, then try to authenticate
-                setTimeout(() => {
-                    handlePasskeyLogin();
-                }, 1000);
-                setError('Passkey registered successfully! Authenticating...');
-            } else {
-                setError(data.error || 'Registration failed');
-            }
-        } catch (error) {
-            console.error('Passkey registration error:', error);
-            setError('Passkey registration failed. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleLogin = () => {
-        if (!passkeyAvailable) {
-            setError('Passkey authentication not supported');
-            return;
-        }
-        handlePasskeyLogin();
     };
 
     return (
@@ -267,6 +64,16 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
                 <View style={[styles.usernameDisplay, { borderColor: border }]}>
                     <Text style={[styles.usernameText, { color: fg }]}>robert</Text>
                 </View>
+                
+                <TextInput
+                    style={[styles.input, { color: fg, borderColor: border }]}
+                    placeholder="password"
+                    placeholderTextColor={placeholder}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoFocus
+                />
                 
                 {error ? (
                     <Text style={[styles.error, { color: '#ff6b6b' }]}>{error}</Text>
@@ -286,42 +93,21 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onClose, curren
                             styles.loginButton, 
                             { 
                                 borderColor: '#f4e4a6',
-                                backgroundColor: loading ? 'transparent' : '#f4e4a6',
-                                opacity: passkeyAvailable ? 1 : 0.5
+                                backgroundColor: password.trim() && !loading ? '#f4e4a6' : 'transparent',
+                                opacity: password.trim() ? 1 : 0.5
                             }
                         ]}
                         onPress={handleLogin}
-                        disabled={loading || !passkeyAvailable}
+                        disabled={loading || !password.trim()}
                     >
                         <Text style={[
                             styles.buttonText, 
-                            { color: loading ? fg : '#000' }
+                            { color: password.trim() && !loading ? '#000' : fg }
                         ]}>
-                            {loading ? 'authenticating...' : 'authenticate →'}
+                            {loading ? 'logging in...' : 'login →'}
                         </Text>
                     </TouchableOpacity>
                 </View>
-                
-                {error && error.includes('not registered') && (
-                    <TouchableOpacity
-                        style={[
-                            styles.button,
-                            styles.registerButton,
-                            { 
-                                borderColor: '#6b9eff',
-                                backgroundColor: 'transparent',
-                                marginTop: 8,
-                                opacity: passkeyAvailable ? 1 : 0.5
-                            }
-                        ]}
-                        onPress={handlePasskeyRegistration}
-                        disabled={loading || !passkeyAvailable}
-                    >
-                        <Text style={[styles.buttonText, { color: '#6b9eff' }]}>
-                            register passkey
-                        </Text>
-                    </TouchableOpacity>
-                )}
             </View>
         </View>
     );
