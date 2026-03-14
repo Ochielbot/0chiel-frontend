@@ -631,14 +631,14 @@ const THOUGHTS: Thought[] = [
 const SPACE_BG: Record<Space, string> = {
     mind: '#000000',
     matter: '#f5f5f0',
-    confluence: '#2a2a28', // Darker for yellow accent
+    confluence: '#f4e4a6', // Soft yellow
     void: '#0a1420', // Washed dark blue for void
 };
 
 const SPACE_FG: Record<Space, string> = {
     mind: '#ffffff',
     matter: '#111111',
-    confluence: '#ffffff',
+    confluence: '#000000', // Black text on yellow
     void: '#6b9dc4', // Washed blue text for void
 };
 
@@ -661,12 +661,12 @@ const SPACE_NODE_BG: Record<Space, { mind: string; matter: string; confluence: s
         confluence: '#e0e0dc',
         void: '#c8c8c4',
     },
-    // confluence bg = #2a2a28 → darker background for yellow accent
+    // confluence bg = #f4e4a6 → yellow background
     confluence: {
-        mind: '#1e1e1e',
-        matter: '#f0f0ec',
-        confluence: ACCENT_COLOR, // Use soft yellow for confluence nodes
-        void: '#2a2a2a',
+        mind: '#d4c486',
+        matter: '#ffffff',
+        confluence: '#e4d496', // Slightly darker yellow for confluence nodes
+        void: '#c4b476',
     },
     // void bg = #0a1420 → washed dark blue
     void: {
@@ -680,7 +680,7 @@ const SPACE_NODE_BG: Record<Space, { mind: string; matter: string; confluence: s
 const SPACE_NODE_TEXT: Record<Space, { mind: string; matter: string; confluence: string; void: string }> = {
     mind: { mind: '#e8e8e8', matter: '#aaaaaa', confluence: '#cccccc', void: '#666666' },
     matter: { mind: '#222222', matter: '#111111', confluence: '#333333', void: '#444444' },
-    confluence: { mind: '#e8e8e8', matter: '#111111', confluence: '#000000', void: '#888888' },
+    confluence: { mind: '#000000', matter: '#000000', confluence: '#000000', void: '#333333' },
     void: { mind: '#5a8ab4', matter: '#7a9ab4', confluence: '#6a8ab4', void: '#6b9dc4' },
 };
 
@@ -688,7 +688,7 @@ const SPACE_NODE_TEXT: Record<Space, { mind: string; matter: string; confluence:
 const SPACE_NODE_BORDER: Record<Space, { mind: string; matter: string; confluence: string; void: string }> = {
     mind: { mind: '#383838', matter: '#303030', confluence: '#404040', void: '#1a1a1a' },
     matter: { mind: '#aaaaaa', matter: '#cccccc', confluence: '#999999', void: '#888888' },
-    confluence: { mind: '#444444', matter: '#999999', confluence: '#777777', void: '#333333' },
+    confluence: { mind: '#333333', matter: '#666666', confluence: '#555555', void: '#222222' },
     void: { mind: '#2a3a4a', matter: '#3a4a5a', confluence: '#4a5a6a', void: '#3a5a7a' },
 };
 
@@ -941,9 +941,21 @@ const FloatingNode = ({
         const isMedia = thought.kind === 'media';
         const isEssay = thought.kind === 'essay';
         const isMarginal = thought.kind === 'marginal';
+        
+        // Check if it's an iframe embed that needs more space
+        const hasIframeEmbed = thought.media?.type === 'iframe';
 
-        const defaultWidth = isCollage ? 260 : isHub ? 220 : isArtifact || isMedia ? 300 : isEssay ? 240 : isMarginal ? 200 : 180;
-        return { width: defaultWidth, height: 'auto' };
+        const defaultWidth = isCollage ? 260 
+            : isHub ? 220 
+            : hasIframeEmbed ? 500  // Larger for iframe embeds like Pinterest
+            : isArtifact || isMedia ? 300 
+            : isEssay ? 240 
+            : isMarginal ? 200 
+            : 180;
+            
+        const defaultHeight = hasIframeEmbed ? 600 : 'auto';  // Fixed height for iframes
+        
+        return { width: defaultWidth, height: defaultHeight };
     };
 
     const currentSize = nodeSize || getDefaultSize();
