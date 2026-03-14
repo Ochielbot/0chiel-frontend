@@ -1601,6 +1601,375 @@ const TypewriterText = ({
     return <Text style={style}>{displayText}</Text>;
 };
 
+// ─── Widget Editor ───────────────────────────────────────────────────────────
+
+const WidgetEditor = ({ 
+    widgetData, 
+    onUpdate, 
+    fg, 
+    fgMuted, 
+    border 
+}: { 
+    widgetData: any; 
+    onUpdate: (data: any) => void;
+    fg: string;
+    fgMuted: string;
+    border: string;
+}) => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+
+    if (!widgetData) return null;
+
+    if (widgetData.type === 'album-ranker') {
+        const rankings = widgetData.rankings || [];
+        
+        const handleSearch = async () => {
+            if (!searchQuery.trim()) return;
+            setIsSearching(true);
+            try {
+                const response = await fetch(
+                    `https://0chiel-backend-production.up.railway.app/api/widgets/album/search?q=${encodeURIComponent(searchQuery)}`
+                );
+                const data = await response.json();
+                setSearchResults(data.results || []);
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+            setIsSearching(false);
+        };
+
+        const handleAddAlbum = (album: any, tier: string) => {
+            const newRankings = [...rankings];
+            const tierIndex = newRankings.findIndex(r => r.tier === tier);
+            
+            if (tierIndex >= 0) {
+                newRankings[tierIndex].albums.push({
+                    name: album.title,
+                    artist: album.artist,
+                    image: album.image
+                });
+            } else {
+                newRankings.push({
+                    tier,
+                    albums: [{
+                        name: album.title,
+                        artist: album.artist,
+                        image: album.image
+                    }]
+                });
+            }
+            
+            onUpdate({ ...widgetData, rankings: newRankings });
+            setSearchResults([]);
+            setSearchQuery('');
+        };
+
+        const handleRemoveAlbum = (tier: string, albumIndex: number) => {
+            const newRankings = rankings.map((r: any) => {
+                if (r.tier === tier) {
+                    return {
+                        ...r,
+                        albums: r.albums.filter((_: any, i: number) => i !== albumIndex)
+                    };
+                }
+                return r;
+            });
+            onUpdate({ ...widgetData, rankings: newRankings });
+        };
+
+        return (
+            <View>
+                <Text style={[styles.essayKind, { color: fgMuted }]}>editing album ranker</Text>
+                <View style={[styles.essayRule, { backgroundColor: border }]} />
+                
+                {/* Search */}
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.widgetEditorLabel, { color: fg }]}>search albums</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                            style={[styles.widgetEditorInput, { color: fg, borderColor: border, flex: 1 }]}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="album name or artist..."
+                            placeholderTextColor={fgMuted}
+                            onSubmitEditing={handleSearch}
+                        />
+                        <TouchableOpacity 
+                            onPress={handleSearch}
+                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR }]}
+                            disabled={isSearching}
+                        >
+                            <Text style={[styles.widgetEditorButtonText, { color: ACCENT_COLOR }]}>
+                                {isSearching ? '...' : 'search'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Search Results */}
+                {searchResults.length > 0 && (
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={[styles.widgetEditorLabel, { color: fg }]}>add to tier</Text>
+                        <ScrollView style={{ maxHeight: 200 }}>
+                            {searchResults.map((album, i) => (
+                                <View key={i} style={[styles.widgetSearchResult, { borderColor: border }]}>
+                                    {Platform.OS === 'web' && album.image && (
+                                        React.createElement('img', {
+                                            src: album.image,
+                                            style: { width: 40, height: 40, borderRadius: 4, marginRight: 12 }
+                                        })
+                                    )}
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.widgetSearchTitle, { color: fg }]}>{album.title}</Text>
+                                        <Text style={[styles.widgetSearchArtist, { color: fgMuted }]}>{album.artist}</Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 4 }}>
+                                        {['S', 'A', 'B', 'C', 'D'].map(tier => (
+                                            <TouchableOpacity
+                                                key={tier}
+                                                onPress={() => handleAddAlbum(album, tier)}
+                                                style={[styles.widgetTierButton, { borderColor: border }]}
+                                            >
+                                                <Text style={[styles.widgetTierButtonText, { color: fg }]}>{tier}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
+
+                {/* Current Rankings */}
+                <Text style={[styles.widgetEditorLabel, { color: fg }]}>current rankings</Text>
+                {['S', 'A', 'B', 'C', 'D'].map(tier => {
+                    const tierData = rankings.find((r: any) => r.tier === tier);
+                    const albums = tierData?.albums || [];
+                    
+                    return (
+                        <View key={tier} style={{ marginBottom: 16 }}>
+                            <Text style={[styles.widgetTierLabel, { color: fg }]}>tier {tier}</Text>
+                            {albums.length === 0 ? (
+                                <Text style={[styles.widgetEmptyText, { color: fgMuted }]}>no albums yet</Text>
+                            ) : (
+                                albums.map((album: any, i: number) => (
+                                    <View key={i} style={[styles.widgetAlbumItem, { borderColor: border }]}>
+                                        {Platform.OS === 'web' && album.image && (
+                                            React.createElement('img', {
+                                                src: album.image,
+                                                style: { width: 30, height: 30, borderRadius: 3, marginRight: 8 }
+                                            })
+                                        )}
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.widgetAlbumName, { color: fg }]}>{album.name}</Text>
+                                            <Text style={[styles.widgetAlbumArtist, { color: fgMuted }]}>{album.artist}</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => handleRemoveAlbum(tier, i)}>
+                                            <Text style={{ color: '#ff6b6b', fontSize: 18 }}>✕</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ))
+                            )}
+                        </View>
+                    );
+                })}
+            </View>
+        );
+    }
+
+    if (widgetData.type === 'book-tracker') {
+        const books = widgetData.books || [];
+
+        const handleSearch = async () => {
+            if (!searchQuery.trim()) return;
+            setIsSearching(true);
+            try {
+                const response = await fetch(
+                    `https://0chiel-backend-production.up.railway.app/api/widgets/book/search?q=${encodeURIComponent(searchQuery)}`
+                );
+                const data = await response.json();
+                setSearchResults(data.results || []);
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+            setIsSearching(false);
+        };
+
+        const handleAddBook = (book: any, status: string) => {
+            const newBook = {
+                title: book.title,
+                authors: book.authors,
+                thumbnail: book.thumbnail,
+                pageCount: book.pageCount || 0,
+                currentPage: 0,
+                status,
+                rating: null,
+                notes: ''
+            };
+            
+            onUpdate({ ...widgetData, books: [...books, newBook] });
+            setSearchResults([]);
+            setSearchQuery('');
+        };
+
+        const handleRemoveBook = (index: number) => {
+            onUpdate({ ...widgetData, books: books.filter((_: any, i: number) => i !== index) });
+        };
+
+        const handleUpdateBook = (index: number, updates: any) => {
+            const newBooks = books.map((book: any, i: number) => 
+                i === index ? { ...book, ...updates } : book
+            );
+            onUpdate({ ...widgetData, books: newBooks });
+        };
+
+        return (
+            <View>
+                <Text style={[styles.essayKind, { color: fgMuted }]}>editing book tracker</Text>
+                <View style={[styles.essayRule, { backgroundColor: border }]} />
+                
+                {/* Search */}
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.widgetEditorLabel, { color: fg }]}>search books</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TextInput
+                            style={[styles.widgetEditorInput, { color: fg, borderColor: border, flex: 1 }]}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            placeholder="book title or author..."
+                            placeholderTextColor={fgMuted}
+                            onSubmitEditing={handleSearch}
+                        />
+                        <TouchableOpacity 
+                            onPress={handleSearch}
+                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR }]}
+                            disabled={isSearching}
+                        >
+                            <Text style={[styles.widgetEditorButtonText, { color: ACCENT_COLOR }]}>
+                                {isSearching ? '...' : 'search'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Search Results */}
+                {searchResults.length > 0 && (
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={[styles.widgetEditorLabel, { color: fg }]}>add to list</Text>
+                        <ScrollView style={{ maxHeight: 200 }}>
+                            {searchResults.map((book, i) => (
+                                <View key={i} style={[styles.widgetSearchResult, { borderColor: border }]}>
+                                    {Platform.OS === 'web' && book.thumbnail && (
+                                        React.createElement('img', {
+                                            src: book.thumbnail,
+                                            style: { width: 30, height: 45, borderRadius: 3, marginRight: 12 }
+                                        })
+                                    )}
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.widgetSearchTitle, { color: fg }]}>{book.title}</Text>
+                                        <Text style={[styles.widgetSearchArtist, { color: fgMuted }]}>
+                                            {book.authors.join(', ')}
+                                        </Text>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', gap: 4 }}>
+                                        <TouchableOpacity
+                                            onPress={() => handleAddBook(book, 'reading')}
+                                            style={[styles.widgetStatusButton, { borderColor: border }]}
+                                        >
+                                            <Text style={[styles.widgetStatusButtonText, { color: fg }]}>reading</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => handleAddBook(book, 'want-to-read')}
+                                            style={[styles.widgetStatusButton, { borderColor: border }]}
+                                        >
+                                            <Text style={[styles.widgetStatusButtonText, { color: fg }]}>want</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
+
+                {/* Current Books */}
+                <Text style={[styles.widgetEditorLabel, { color: fg }]}>your books</Text>
+                {books.length === 0 ? (
+                    <Text style={[styles.widgetEmptyText, { color: fgMuted }]}>no books yet</Text>
+                ) : (
+                    books.map((book: any, i: number) => (
+                        <View key={i} style={[styles.widgetBookItem, { borderColor: border }]}>
+                            {Platform.OS === 'web' && book.thumbnail && (
+                                React.createElement('img', {
+                                    src: book.thumbnail,
+                                    style: { width: 30, height: 45, borderRadius: 3, marginRight: 12 }
+                                })
+                            )}
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.widgetAlbumName, { color: fg }]}>{book.title}</Text>
+                                <Text style={[styles.widgetAlbumArtist, { color: fgMuted }]}>
+                                    {book.authors.join(', ')} · {book.status}
+                                </Text>
+                                {book.status === 'reading' && (
+                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                                        <TextInput
+                                            style={[styles.widgetPageInput, { color: fg, borderColor: border }]}
+                                            value={String(book.currentPage)}
+                                            onChangeText={(val) => handleUpdateBook(i, { currentPage: parseInt(val) || 0 })}
+                                            keyboardType="numeric"
+                                            placeholder="page"
+                                            placeholderTextColor={fgMuted}
+                                        />
+                                        <Text style={[styles.widgetPageText, { color: fgMuted }]}>/ {book.pageCount}</Text>
+                                    </View>
+                                )}
+                                {book.status === 'completed' && (
+                                    <View style={{ flexDirection: 'row', gap: 4, marginTop: 8 }}>
+                                        {[1,2,3,4,5].map(star => (
+                                            <TouchableOpacity
+                                                key={star}
+                                                onPress={() => handleUpdateBook(i, { rating: star })}
+                                            >
+                                                <Text style={{ fontSize: 16, color: star <= (book.rating || 0) ? '#ffd700' : fgMuted }}>
+                                                    {star <= (book.rating || 0) ? '★' : '☆'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+                            <View style={{ gap: 8 }}>
+                                {book.status === 'reading' && (
+                                    <TouchableOpacity 
+                                        onPress={() => handleUpdateBook(i, { status: 'completed' })}
+                                        style={[styles.widgetSmallButton, { borderColor: ACCENT_COLOR }]}
+                                    >
+                                        <Text style={[styles.widgetSmallButtonText, { color: ACCENT_COLOR }]}>done</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {book.status === 'want-to-read' && (
+                                    <TouchableOpacity 
+                                        onPress={() => handleUpdateBook(i, { status: 'reading' })}
+                                        style={[styles.widgetSmallButton, { borderColor: ACCENT_COLOR }]}
+                                    >
+                                        <Text style={[styles.widgetSmallButtonText, { color: ACCENT_COLOR }]}>start</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity onPress={() => handleRemoveBook(i)}>
+                                    <Text style={{ color: '#ff6b6b', fontSize: 18 }}>✕</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    ))
+                )}
+            </View>
+        );
+    }
+
+    return null;
+};
+
 // ─── Essay Overlay ───────────────────────────────────────────────────────────
 
 const ContentOverlay = ({
@@ -1622,13 +1991,17 @@ const ContentOverlay = ({
     const translateY = useSharedValue(40);
     const [isEditing, setIsEditing] = useState(false);
     const [editedBody, setEditedBody] = useState('');
+    const [isEditingWidget, setIsEditingWidget] = useState(false);
+    const [widgetData, setWidgetData] = useState<any>(null);
 
     useEffect(() => {
         if (thought) {
             opacity.value = withTiming(1, { duration: 350 });
             translateY.value = withSpring(0, { damping: 18, stiffness: 150 });
             setEditedBody(thought.body || '');
+            setWidgetData(thought.widget || null);
             setIsEditing(false);
+            setIsEditingWidget(false);
         } else {
             opacity.value = withTiming(0, { duration: 200 });
             translateY.value = withTiming(30, { duration: 200 });
@@ -1639,6 +2012,12 @@ const ContentOverlay = ({
         if (!thought || !onEdit) return;
         onEdit({ ...thought, body: editedBody });
         setIsEditing(false);
+    };
+
+    const handleSaveWidget = async () => {
+        if (!thought || !onEdit) return;
+        onEdit({ ...thought, widget: widgetData });
+        setIsEditingWidget(false);
     };
 
     const handleDelete = () => {
@@ -2074,13 +2453,21 @@ const ContentOverlay = ({
                     
                     {isAdmin && (
                         <View style={{ flexDirection: 'row', gap: 12 }}>
-                            {!isEditing ? (
+                            {!isEditing && !isEditingWidget ? (
                                 <>
+                                    {thought.kind === 'widget' && (
+                                        <TouchableOpacity 
+                                            onPress={() => setIsEditingWidget(true)}
+                                            style={[styles.adminButton, { borderColor: ACCENT_COLOR }]}
+                                        >
+                                            <Text style={[styles.adminButtonText, { color: ACCENT_COLOR }]}>edit widget</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <TouchableOpacity 
                                         onPress={() => setIsEditing(true)}
                                         style={[styles.adminButton, { borderColor: ACCENT_COLOR }]}
                                     >
-                                        <Text style={[styles.adminButtonText, { color: ACCENT_COLOR }]}>edit</Text>
+                                        <Text style={[styles.adminButtonText, { color: ACCENT_COLOR }]}>edit text</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity 
                                         onPress={handleDelete}
@@ -2092,13 +2479,16 @@ const ContentOverlay = ({
                             ) : (
                                 <>
                                     <TouchableOpacity 
-                                        onPress={() => setIsEditing(false)}
+                                        onPress={() => {
+                                            setIsEditing(false);
+                                            setIsEditingWidget(false);
+                                        }}
                                         style={[styles.adminButton, { borderColor: fgMuted }]}
                                     >
                                         <Text style={[styles.adminButtonText, { color: fgMuted }]}>cancel</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity 
-                                        onPress={handleSaveEdit}
+                                        onPress={isEditingWidget ? handleSaveWidget : handleSaveEdit}
                                         style={[styles.adminButton, { borderColor: ACCENT_COLOR, backgroundColor: ACCENT_COLOR }]}
                                     >
                                         <Text style={[styles.adminButtonText, { color: '#000' }]}>save</Text>
@@ -2125,6 +2515,14 @@ const ContentOverlay = ({
                             placeholderTextColor={fgMuted}
                         />
                     </View>
+                ) : isEditingWidget ? (
+                    <WidgetEditor
+                        widgetData={widgetData}
+                        onUpdate={setWidgetData}
+                        fg={fg}
+                        fgMuted={fgMuted}
+                        border={border}
+                    />
                 ) : (
                     renderContent()
                 )}
@@ -4736,6 +5134,139 @@ const styles = StyleSheet.create({
         borderRadius: 4,
         padding: 12,
         marginTop: 12,
+    },
+
+    // Widget editor styles
+    widgetEditorLabel: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 12,
+        letterSpacing: 0.5,
+        marginBottom: 8,
+        textTransform: 'uppercase',
+    },
+    widgetEditorInput: {
+        fontFamily: 'Cormorant Garamond',
+        fontSize: 16,
+        borderWidth: 1,
+        borderRadius: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    widgetEditorButton: {
+        borderWidth: 1,
+        borderRadius: 4,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        justifyContent: 'center',
+    },
+    widgetEditorButtonText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 12,
+        letterSpacing: 0.5,
+    },
+    widgetSearchResult: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 4,
+        padding: 12,
+        marginBottom: 8,
+    },
+    widgetSearchTitle: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 14,
+        marginBottom: 2,
+    },
+    widgetSearchArtist: {
+        fontFamily: 'Cormorant Garamond',
+        fontSize: 13,
+    },
+    widgetTierButton: {
+        borderWidth: 1,
+        borderRadius: 3,
+        width: 28,
+        height: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    widgetTierButtonText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    widgetStatusButton: {
+        borderWidth: 1,
+        borderRadius: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    widgetStatusButtonText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 10,
+        letterSpacing: 0.5,
+    },
+    widgetTierLabel: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 8,
+    },
+    widgetEmptyText: {
+        fontFamily: 'Cormorant Garamond',
+        fontSize: 14,
+        fontStyle: 'italic',
+        marginBottom: 8,
+    },
+    widgetAlbumItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: 4,
+        padding: 8,
+        marginBottom: 6,
+    },
+    widgetAlbumName: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 13,
+        marginBottom: 2,
+    },
+    widgetAlbumArtist: {
+        fontFamily: 'Cormorant Garamond',
+        fontSize: 12,
+    },
+    widgetBookItem: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        borderWidth: 1,
+        borderRadius: 4,
+        padding: 12,
+        marginBottom: 8,
+    },
+    widgetPageInput: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 13,
+        borderWidth: 1,
+        borderRadius: 3,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        width: 60,
+        textAlign: 'center',
+    },
+    widgetPageText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 13,
+        alignSelf: 'center',
+    },
+    widgetSmallButton: {
+        borderWidth: 1,
+        borderRadius: 3,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+    },
+    widgetSmallButtonText: {
+        fontFamily: 'Space Grotesk',
+        fontSize: 10,
+        letterSpacing: 0.5,
     },
 
     // Socials compact (in currently widget)
