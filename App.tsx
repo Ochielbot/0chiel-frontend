@@ -1696,30 +1696,28 @@ const WidgetEditor = ({
 
         return (
             <View>
-                <Text style={[styles.essayTitle, { color: fg, marginBottom: 8 }]}>Edit Album Rankings</Text>
-                <Text style={[styles.essayBody, { color: fgMuted, marginBottom: 20 }]}>
-                    Search for albums and add them to tiers S through D
-                </Text>
+                <Text style={[styles.essayKind, { color: fgMuted }]}>editing album ranker</Text>
+                <View style={[styles.essayRule, { backgroundColor: border }]} />
                 
                 {/* Search */}
-                <View style={{ marginBottom: 24, padding: 16, backgroundColor: border + '20', borderRadius: 8 }}>
-                    <Text style={[styles.widgetEditorLabel, { color: fg, marginBottom: 12 }]}>Search Albums</Text>
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.widgetEditorLabel, { color: fg }]}>search albums</Text>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                         <TextInput
                             style={[styles.widgetEditorInput, { color: fg, borderColor: border, flex: 1 }]}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            placeholder="Type album name or artist..."
+                            placeholder="album name or artist..."
                             placeholderTextColor={fgMuted}
                             onSubmitEditing={handleSearch}
                         />
                         <TouchableOpacity 
                             onPress={handleSearch}
-                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR, backgroundColor: ACCENT_COLOR }]}
+                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR }]}
                             disabled={isSearching}
                         >
-                            <Text style={[styles.widgetEditorButtonText, { color: '#000' }]}>
-                                {isSearching ? '...' : 'Search'}
+                            <Text style={[styles.widgetEditorButtonText, { color: ACCENT_COLOR }]}>
+                                {isSearching ? '...' : 'search'}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -1844,30 +1842,28 @@ const WidgetEditor = ({
 
         return (
             <View>
-                <Text style={[styles.essayTitle, { color: fg, marginBottom: 8 }]}>Edit Reading List</Text>
-                <Text style={[styles.essayBody, { color: fgMuted, marginBottom: 20 }]}>
-                    Search for books and track your reading progress
-                </Text>
+                <Text style={[styles.essayKind, { color: fgMuted }]}>editing book tracker</Text>
+                <View style={[styles.essayRule, { backgroundColor: border }]} />
                 
                 {/* Search */}
-                <View style={{ marginBottom: 24, padding: 16, backgroundColor: border + '20', borderRadius: 8 }}>
-                    <Text style={[styles.widgetEditorLabel, { color: fg, marginBottom: 12 }]}>Search Books</Text>
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.widgetEditorLabel, { color: fg }]}>search books</Text>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                         <TextInput
                             style={[styles.widgetEditorInput, { color: fg, borderColor: border, flex: 1 }]}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            placeholder="Type book title or author..."
+                            placeholder="book title or author..."
                             placeholderTextColor={fgMuted}
                             onSubmitEditing={handleSearch}
                         />
                         <TouchableOpacity 
                             onPress={handleSearch}
-                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR, backgroundColor: ACCENT_COLOR }]}
+                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR }]}
                             disabled={isSearching}
                         >
-                            <Text style={[styles.widgetEditorButtonText, { color: '#000' }]}>
-                                {isSearching ? '...' : 'Search'}
+                            <Text style={[styles.widgetEditorButtonText, { color: ACCENT_COLOR }]}>
+                                {isSearching ? '...' : 'search'}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -2033,30 +2029,28 @@ const WidgetEditor = ({
 
         return (
             <View>
-                <Text style={[styles.essayTitle, { color: fg, marginBottom: 8 }]}>Edit Movie Log</Text>
-                <Text style={[styles.essayBody, { color: fgMuted, marginBottom: 20 }]}>
-                    Search for movies and track what you've watched
-                </Text>
+                <Text style={[styles.essayKind, { color: fgMuted }]}>editing movie tracker</Text>
+                <View style={[styles.essayRule, { backgroundColor: border }]} />
                 
                 {/* Search */}
-                <View style={{ marginBottom: 24, padding: 16, backgroundColor: border + '20', borderRadius: 8 }}>
-                    <Text style={[styles.widgetEditorLabel, { color: fg, marginBottom: 12 }]}>Search Movies</Text>
+                <View style={{ marginBottom: 20 }}>
+                    <Text style={[styles.widgetEditorLabel, { color: fg }]}>search movies</Text>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                         <TextInput
                             style={[styles.widgetEditorInput, { color: fg, borderColor: border, flex: 1 }]}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
-                            placeholder="Type movie title..."
+                            placeholder="movie title..."
                             placeholderTextColor={fgMuted}
                             onSubmitEditing={handleSearch}
                         />
                         <TouchableOpacity 
                             onPress={handleSearch}
-                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR, backgroundColor: ACCENT_COLOR }]}
+                            style={[styles.widgetEditorButton, { borderColor: ACCENT_COLOR }]}
                             disabled={isSearching}
                         >
-                            <Text style={[styles.widgetEditorButtonText, { color: '#000' }]}>
-                                {isSearching ? '...' : 'Search'}
+                            <Text style={[styles.widgetEditorButtonText, { color: ACCENT_COLOR }]}>
+                                {isSearching ? '...' : 'search'}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -4086,7 +4080,12 @@ export default function App() {
 
     const handleEditNode = useCallback(async (thought: Thought) => {
         try {
-            await api.updateThought(thought.id, { body: thought.body });
+            const updates: any = {};
+            if (thought.body !== undefined) updates.body = thought.body;
+            if (thought.widget !== undefined) updates.widget = thought.widget;
+            if (thought.space !== undefined) updates.space = thought.space;
+            
+            await api.updateThought(thought.id, updates);
             setThoughts(prev => prev.map(t => t.id === thought.id ? thought : t));
             setExpandedThought(thought);
         } catch (error) {
