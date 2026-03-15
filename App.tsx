@@ -1405,10 +1405,49 @@ const FloatingNode = ({
                     </View>
                 )}
 
-                {isArtifact && (
+                {isArtifact && !isWidget && (
                     <Text style={[styles.nodeMediaHint, { color: nodeText, opacity: 0.55, marginTop: 4 }]}>
                         project ↗
                     </Text>
+                )}
+
+                {/* Widget preview */}
+                {isWidget && thought.widget && Platform.OS === 'web' && (
+                    <View style={[styles.widgetPreview, { height: constrainedSize.height !== 'auto' ? Math.max(100, (constrainedSize.height as number) - 80) : 200 }]}>
+                        {thought.widget.type === 'album-ranker' && thought.widget.rankings && thought.widget.rankings.length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                {thought.widget.rankings.flatMap((r: any) => r.albums || []).slice(0, 6).map((album: any, i: number) => (
+                                    album.image && React.createElement('img', {
+                                        key: i,
+                                        src: album.image,
+                                        style: { width: 60, height: 60, borderRadius: 4, objectFit: 'cover' }
+                                    })
+                                ))}
+                            </View>
+                        )}
+                        {thought.widget.type === 'book-tracker' && thought.widget.books && thought.widget.books.length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                {thought.widget.books.slice(0, 6).map((book: any, i: number) => (
+                                    book.thumbnail && React.createElement('img', {
+                                        key: i,
+                                        src: book.thumbnail,
+                                        style: { width: 45, height: 65, borderRadius: 3, objectFit: 'cover' }
+                                    })
+                                ))}
+                            </View>
+                        )}
+                        {thought.widget.type === 'movie-tracker' && thought.widget.movies && thought.widget.movies.length > 0 && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+                                {thought.widget.movies.slice(0, 6).map((movie: any, i: number) => (
+                                    movie.poster && movie.poster !== 'N/A' && React.createElement('img', {
+                                        key: i,
+                                        src: movie.poster,
+                                        style: { width: 45, height: 65, borderRadius: 3, objectFit: 'cover' }
+                                    })
+                                ))}
+                            </View>
+                        )}
+                    </View>
                 )}
             </Animated.View>
         </GestureDetector>
@@ -5603,6 +5642,10 @@ const styles = StyleSheet.create({
         paddingVertical: 6,
         marginTop: 8,
         minHeight: 60,
+    },
+    widgetPreview: {
+        marginTop: 8,
+        overflow: 'hidden',
     },
 
     // Socials compact (in currently widget)
